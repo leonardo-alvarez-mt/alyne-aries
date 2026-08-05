@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #374151;
+    background: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  /* Thin scrollbars for scroll regions (sidebar, tables, menus). */
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Mitratech Chrome Shell ─────────────────────────────── */
+
+:root {
+  --shell-header-height: 64px;
+  --shell-sidebar-expanded: 270px;
+  --shell-sidebar-collapsed: 5.5rem;
+  --shell-z-sidebar: 40;
+  --shell-z-header: 50;
+  --shell-z-dropdown: 60;
+  --shell-z-modal: 70;
+
+  --shell-header-bg: #ffffff;
+  --shell-header-border: #e4e7ec;
+  --shell-page-bg: #f9fbff;
+  --shell-sidebar-bg: #fcfdff;
+  --shell-text-primary: #212121;
+  --shell-text-secondary: #666666;
+  --shell-purple-avatar-bg: #d8cae2;
+  --shell-purple-avatar-text: #632d8a;
+  --shell-error-main: #cd2026;
+}
+
+@keyframes flyout-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes flyout-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sidebar-light {
+  --sb-bg: var(--shell-sidebar-bg);
+  --sb-bg-hover: rgba(0,0,0,0.04);
+  --sb-icon-active-bg: rgba(0,103,210,0.10);
+  --sb-bg-active: rgba(37,99,235,0.07);
+  --sb-active-bar: #2563EB;
+  --sb-border: #E2E8F0;
+  --sb-text: #4B5563;
+  --sb-text-active: #1D4ED8;
+  --sb-label: #9CA3AF;
+  --sb-icon: #6B7280;
+  --sb-icon-active: #2563EB;
+  --sb-accent: #3B82F6;
+  --sb-toggle-hover: rgba(0,0,0,0.04);
+  --sb-child-line: #E2E8F0;
+  --sb-child-active: rgba(37,99,235,0.08);
+  --sb-child-text-active: #1D4ED8;
+}
+
+.sidebar-dark {
+  --sb-bg: #0F1724;
+  --sb-bg-hover: rgba(255,255,255,0.06);
+  --sb-icon-active-bg: rgba(0,103,210,0.22);
+  --sb-bg-active: rgba(59,158,255,0.10);
+  --sb-active-bar: #3B9EFF;
+  --sb-border: rgba(255,255,255,0.10);
+  --sb-text: rgba(255,255,255,0.65);
+  --sb-text-active: #FFFFFF;
+  --sb-label: rgba(255,255,255,0.30);
+  --sb-icon: rgba(255,255,255,0.50);
+  --sb-icon-active: #FFFFFF;
+  --sb-accent: #3B9EFF;
+  --sb-toggle-hover: rgba(255,255,255,0.06);
+  --sb-child-line: rgba(255,255,255,0.10);
+  --sb-child-active: rgba(59,158,255,0.12);
+  --sb-child-text-active: #60AEFF;
+}
+
+@keyframes shellFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shellSlideIn {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Ask ARIES gradient button — a flare that sweeps around the outline once on hover. */
+.aries-outline {
+  position: relative;
+  overflow: hidden;
+}
+.aries-outline::before {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  border-radius: inherit;
+  /* Flare arc centered at 0deg; --aries-from rotates it to the hover point. */
+  background: conic-gradient(
+    from var(--aries-from, 0deg),
+    #ffffff 0deg,
+    rgba(127, 217, 255, 0.85) 10deg,
+    transparent 30deg,
+    transparent 330deg,
+    rgba(127, 217, 255, 0.85) 350deg,
+    #ffffff 360deg
+  );
+  opacity: 0;
+  transform: rotate(0deg);
+  pointer-events: none;
+}
+.aries-outline:hover::before,
+.aries-outline.aries-flare-run::before {
+  animation: aries-flare 1300ms ease-out 1;
+}
+@keyframes aries-flare {
+  0%   { transform: rotate(0deg);   opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: rotate(180deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aries-outline:hover::before { animation: none; }
+}

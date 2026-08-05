@@ -1,0 +1,51 @@
+/**
+ * Shared Duo icon registry for chrome-shell primary navigation.
+ * One concept → one icon, reused across all products for consistency.
+ */
+import {
+  AlertOctagon,
+  AlertTriangle,
+  App,
+  AppDots,
+  Approved,
+  Bank,
+  Bell,
+  Book,
+  Building,
+  Calendar,
+  Certificate,
+  ChartPie,
+  CheckCircle,
+  Clipboard,
+  Compass,
+  Dashboard,
+  File,
+  FolderOpen,
+  IdCard,
+  Settings,
+  User,
+} from '@duo-icons/react';
+
+export const ShellNavIcon = {
+  home: Compass,
+  dashboard: Dashboard,
+  analytics: ChartPie,
+  reports: File,
+  documents: FolderOpen,
+  library: Book,
+  tasks: CheckCircle,
+  risk: AlertTriangle,
+  incidents: AlertOctagon,
+  users: User,
+  settings: Settings,
+  notifications: Bell,
+  organization: Bank,
+  entities: Building,
+  compliance: Approved,
+  clipboard: Clipboard,
+  apps: App,
+  more: AppDots,
+  calendar: Calendar,
+  training: Certificate,
+  roles: IdCard,
+};

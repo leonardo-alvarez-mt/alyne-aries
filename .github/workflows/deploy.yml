@@ -1,0 +1,62 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; newer pushes supersede in-flight ones.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          # Project site is served from https://<owner>.github.io/<repo>/
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Optional: set a repository secret of the same name to override the
+          # password in src/config/prototype.js without committing it.
+          VITE_PROTOTYPE_PASSWORD: ${{ secrets.VITE_PROTOTYPE_PASSWORD }}
+        run: npm run build
+
+      - name: SPA fallback for client-side routing
+        # GitHub Pages has no rewrite rules; serving index.html for unknown
+        # paths lets deep links like /governance/controls resolve.
+        run: cp dist/index.html dist/404.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
