@@ -16,16 +16,35 @@ const menuItemClass = cn(
   'focus-visible:outline-none focus-visible:bg-neutral-100 focus-visible:text-neutral-900'
 );
 
+/** Grace period on hover-out, so crossing the gap between the ellipsis and the
+ *  menu doesn't dismiss it. */
+const HOVER_CLOSE_DELAY_MS = 150;
+
 /**
- * Dropdown of collapsed (hidden) breadcrumb levels. Opens from the ellipsis
- * button and lists the hidden items. Items with `href` are navigable links;
- * items without `href` render as non-link labels (never fall back to `/`).
+ * Dropdown of collapsed (hidden) breadcrumb levels. Reveals on hover over the
+ * ellipsis — no click needed — and still opens on click/Enter for touch and
+ * keyboard. Items with `href` are navigable links; items without `href` render
+ * as non-link labels (never fall back to `/`).
  */
 function CollapsedMenu({ items }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const buttonRef = useRef(null);
   const itemRefs = useRef([]);
+  const closeTimer = useRef(null);
+  // Whether the pending open should pull focus into the menu. True for click and
+  // keyboard, false for hover — see the focus effect below.
+  const focusOnOpen = useRef(false);
+
+  function cancelPendingClose() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+
+  // Drop a pending close if the trail re-renders away mid-countdown.
+  useEffect(() => cancelPendingClose, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -36,14 +55,36 @@ function CollapsedMenu({ items }) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // Move focus into the menu when it opens.
+  // Move focus into the menu only when a click or key opened it. On hover this
+  // would yank focus out from under someone who merely swept the pointer past.
   useEffect(() => {
-    if (open) itemRefs.current[0]?.focus();
+    if (open && focusOnOpen.current) {
+      itemRefs.current[0]?.focus();
+      focusOnOpen.current = false;
+    }
   }, [open]);
 
+  function openMenu({ withFocus = false } = {}) {
+    cancelPendingClose();
+    focusOnOpen.current = withFocus;
+    setOpen(true);
+  }
+
   function close(focusButton = true) {
+    cancelPendingClose();
     setOpen(false);
     if (focusButton) buttonRef.current?.focus();
+  }
+
+  // Hover-out. Held open while focus is inside: a keyboard user is still in the
+  // menu and the pointer drifting off shouldn't close it under them.
+  function scheduleClose() {
+    cancelPendingClose();
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      if (wrapRef.current?.contains(document.activeElement)) return;
+      setOpen(false);
+    }, HOVER_CLOSE_DELAY_MS);
   }
 
   function onMenuKeyDown(e) {
@@ -68,11 +109,16 @@ function CollapsedMenu({ items }) {
   }
 
   return (
-    <span className="relative inline-flex" ref={wrapRef}>
+    <span
+      className="relative inline-flex"
+      ref={wrapRef}
+      onMouseEnter={() => openMenu()}
+      onMouseLeave={scheduleClose}
+    >
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? close() : openMenu({ withFocus: true }))}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Show ${items.length} hidden breadcrumb ${items.length === 1 ? 'level' : 'levels'}`}
