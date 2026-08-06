@@ -74,17 +74,13 @@ export const alyneNavSections = [
         path: '#',
         flyout: true,
         children: [
-          { id: 'search',  label: 'Search',  path: '/search' },
           { id: 'objects', label: 'Objects', path: '/objects' },
+          // Moved out of the old bottom section, where NavItem special-cased the
+          // `settings` id into a Shell appearance toggle. As a flyout child it is
+          // an ordinary destination; Shell appearance now lives in the user menu.
+          { id: 'org-settings', label: 'Organisation Settings', path: '/settings' },
         ],
       },
-    ],
-  },
-  {
-    id: 'bottom',
-    label: '',
-    items: [
-      { id: 'settings', label: 'Settings', icon: I.settings, activeIcon: I.settings, path: '/settings' },
     ],
   },
 ];

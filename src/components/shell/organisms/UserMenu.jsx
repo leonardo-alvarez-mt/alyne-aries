@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { User, Settings, LogOut, ChevronRight, Palette } from 'lucide-react';
+import { User, LogOut, ChevronRight, Palette } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { Avatar } from '../atoms/Avatar';
 import { Divider } from '../atoms/Divider';
@@ -37,7 +37,7 @@ export function UserMenu({ onClose }) {
       </div>
       <Divider />
       <ul className="py-1">
-        {[{ icon: User, label: 'My Profile' }, { icon: Settings, label: 'Account Settings' }].map((item) => (
+        {[{ icon: User, label: 'My Profile' }].map((item) => (
           <li key={item.label}>
             <a
               href="#"

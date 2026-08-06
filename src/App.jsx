@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { PasswordGate } from './components/PasswordGate';
-import { ShellProvider } from './components/shell/ShellContext';
+import { ShellProvider, useShell } from './components/shell/ShellContext';
 import { ShellLayout } from './components/shell/organisms/ShellLayout';
 import AlyneHome from './pages/alyne/AlyneHome';
 import GovernanceControls from './pages/alyne/GovernanceControls';
@@ -22,6 +23,29 @@ function ShellFrame({ trailing, children }) {
   return <ShellLayout trailing={trailing}>{children}</ShellLayout>;
 }
 
+/**
+ * The appearance panel replaces the page content instead of floating over it, so
+ * any navigation — sidebar, top nav, flyout, breadcrumb, browser back — should
+ * leave it rather than stranding the panel over a page the user navigated to.
+ * Sits outside <Routes> so a route change never remounts it, and keys off
+ * `location.key` so re-picking the current module counts as navigation too.
+ */
+function CloseAppearancePanelOnNavigate() {
+  const { key } = useLocation();
+  const { settingsPanelOpen, setSettingsPanelOpen } = useShell();
+  const lastKey = useRef(key);
+
+  useEffect(() => {
+    if (key === lastKey.current) return;
+    lastKey.current = key;
+    // Guarded: setSettingsPanelOpen(false) also restores the pre-panel sidebar
+    // width, which would clobber the sidebar if called on an unrelated nav.
+    if (settingsPanelOpen) setSettingsPanelOpen(false);
+  }, [key, settingsPanelOpen, setSettingsPanelOpen]);
+
+  return null;
+}
+
 /** Control Set detail route — resolves the set name for the trailing breadcrumb. */
 function ControlSetDetailRoute() {
   const { id } = useParams();
@@ -37,6 +61,7 @@ export default function App() {
     <PasswordGate>
       <ShellProvider>
         <BrowserRouter basename={routerBasename || undefined}>
+          <CloseAppearancePanelOnNavigate />
           <Routes>
             <Route
               index
