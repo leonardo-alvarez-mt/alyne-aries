@@ -35,9 +35,6 @@ jobs:
         env:
           # Project site is served from https://<owner>.github.io/<repo>/
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          # Optional: set a repository secret of the same name to override the
-          # password in src/config/prototype.js without committing it.
-          VITE_PROTOTYPE_PASSWORD: ${{ secrets.VITE_PROTOTYPE_PASSWORD }}
         run: npm run build
 
       - name: SPA fallback for client-side routing

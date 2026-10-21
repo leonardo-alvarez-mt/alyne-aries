@@ -2,8 +2,7 @@
 
 Standalone extraction of the Alyne prototype from the Chrome Shell project
 (`Mitratech-GRC-Design/grc-design-system-docs-v3`), trimmed to just the Alyne
-pages plus the shared shell they need, and wrapped in a password screen for
-usability sessions.
+pages plus the shared shell they need.
 
 This repo does not depend on the Chrome Shell repo in any way.
 
@@ -23,29 +22,6 @@ Other scripts:
 | `npm run build:local` | Production build served from `/`                          |
 | `npm run preview`     | Serve the last build locally                              |
 
-## The password screen
-
-The access code lives in [`src/config/prototype.js`](src/config/prototype.js).
-Change it in one of two ways:
-
-1. **Edit the file** — change `PROTOTYPE_PASSWORD` and commit.
-2. **Environment variable** — set `VITE_PROTOTYPE_PASSWORD` at build time. It
-   overrides the file. Locally use a `.env.local`; for deploys add a repository
-   secret named `VITE_PROTOTYPE_PASSWORD` (the deploy workflow already reads it).
-
-Current default: `alyne-ux-2026`
-
-Unlocking is stored in `sessionStorage`, so a refresh or a deep link mid-session
-won't re-prompt, but closing the tab ends the session. Every route is behind the
-gate — deep links can't skip it.
-
-> [!IMPORTANT]
-> **This gate is a courtesy screen, not access control.** The prototype is a
-> static bundle: the browser downloads all of it before the check runs, and the
-> password ends up inside that bundle in plain text. Anyone who opens devtools
-> can read it. Treat the deployed URL as readable by anyone who has it, and do
-> not put confidential or customer data into this prototype.
-
 ## Deployment
 
 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds on every
@@ -58,8 +34,8 @@ rules).
 > **A GitHub Pages site in this organisation is public.** The org is on the
 > GitHub **Team** plan, where Pages sites are always public regardless of repo
 > visibility — access control for Pages requires GitHub Enterprise Cloud.
-> Enabling Pages therefore publishes this prototype to the open internet, with
-> only the cosmetic gate above in front of it. Clear that with
+> Enabling Pages therefore publishes this prototype to the open internet.
+> Clear that with
 > **AI@mitratech.com** before enabling Pages.
 
 ## What's in here
@@ -80,7 +56,6 @@ Written for this repo:
 
 - `src/App.jsx` — Alyne routes, mounted at `/` (Chrome Shell served them under
   `/chrome-shell/*`)
-- `src/components/PasswordGate.jsx`, `src/config/prototype.js`
 - Build config, Pages workflow
 
 Everything else from Chrome Shell — the five other product prototypes, the docs

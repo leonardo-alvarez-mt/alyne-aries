@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
-import { PasswordGate } from './components/PasswordGate';
 import { ShellProvider, useShell } from './components/shell/ShellContext';
 import { ShellLayout } from './components/shell/organisms/ShellLayout';
 import AlyneHome from './pages/alyne/AlyneHome';
@@ -74,8 +73,7 @@ function ControlSetDetailRoute() {
 
 export default function App() {
   return (
-    <PasswordGate>
-      <ShellProvider>
+    <ShellProvider>
         <BrowserRouter basename={routerBasename || undefined}>
           <CloseAppearancePanelOnNavigate />
           <Routes>
@@ -153,7 +151,6 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
-      </ShellProvider>
-    </PasswordGate>
+    </ShellProvider>
   );
 }
