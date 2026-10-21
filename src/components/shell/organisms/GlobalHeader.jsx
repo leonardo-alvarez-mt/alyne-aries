@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, ChevronDown, PanelLeft, HelpCircle, Sparkles } from 'lucide-react';
+import { Bell, ChevronDown, PanelLeft, HelpCircle, Search } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { ProductSwitcherMenu } from './ProductSwitcherMenu';
 import { NotificationMenu } from './NotificationMenu';
@@ -26,7 +26,6 @@ export function GlobalHeader() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
-  const [searchFlare, setSearchFlare] = useState(false);
 
   const activeProduct = products.find((p) => p.id === activeProductId) ?? products[0];
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -74,77 +73,45 @@ export function GlobalHeader() {
         )}
       </div>
 
-      <div className="hidden md:flex min-w-0 flex-1 justify-center px-3">
-        <div
+      <div className="hidden md:flex min-w-0 flex-1 justify-center px-6">
+        <label
           className={cn(
-            'aries-outline flex w-full max-w-xl rounded-xl p-[1.5px] transition-colors duration-150',
-            searchFlare && 'aries-flare-run',
-            searchActive && !searchFlare && 'ring-2 ring-blue-100'
+            'flex h-9 w-full max-w-md items-center gap-2 rounded-lg border px-2.5 transition-colors duration-150',
+            searchActive
+              ? 'border-[#0067D2] bg-white shadow-[0_0_0_3px_rgba(0,103,210,0.14)]'
+              : 'border-transparent bg-neutral-100 hover:bg-neutral-200/70'
           )}
-          onMouseDown={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            const angle = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
-            e.currentTarget.style.setProperty('--aries-from', `${angle}deg`);
-          }}
-          onAnimationEnd={() => setSearchFlare(false)}
-          style={{
-            background: searchFlare
-              ? 'linear-gradient(135deg, #0067D2 0%, #00B8D9 100%)'
-              : searchActive
-                ? '#60A5FA' /* blue-400 — normal focused border */
-                : '#E5E7EB', /* neutral-200 */
-          }}
         >
-          <div className="relative z-[1] flex w-full items-center rounded-[10px] bg-white">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
-              <Sparkles size={16} strokeWidth={2} aria-hidden="true" style={{ color: '#0067D2' }} />
+          <Search
+            size={15}
+            strokeWidth={2}
+            aria-hidden="true"
+            className={cn('shrink-0', searchActive ? 'text-[#0067D2]' : 'text-neutral-400')}
+          />
+          <input
+            type="search"
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            onFocus={() => setSearchActive(true)}
+            onBlur={() => setSearchActive(false)}
+            placeholder="Search controls, risks, questionnaires"
+            aria-label="Search"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-neutral-800 placeholder:text-neutral-500 focus:outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+          />
+          {globalSearch.length === 0 && (
+            <span aria-hidden="true" className="hidden shrink-0 items-center gap-0.5 lg:inline-flex">
+              <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-neutral-200/80 bg-white px-1 font-sans text-[11px] font-medium leading-none text-neutral-500">
+                ⌘
+              </kbd>
+              <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-neutral-200/80 bg-white px-1 font-sans text-[11px] font-medium leading-none text-neutral-500">
+                K
+              </kbd>
             </span>
-            <input
-              type="text"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              onFocus={() => { setSearchActive(true); setSearchFlare(true); }}
-              onBlur={() => setSearchActive(false)}
-              placeholder="Search or ask AI anything…"
-              aria-label="Global AI search"
-              className="w-full rounded-[10px] bg-transparent py-1.5 pl-9 pr-16 text-[13px] text-neutral-700 placeholder:text-neutral-400 focus:outline-none"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-neutral-400"
-            >
-              ⌘K
-            </span>
-          </div>
-        </div>
+          )}
+        </label>
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0 ml-4">
-        <button
-          type="button"
-          aria-label="Ask ARIES"
-          onMouseEnter={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            // Compass angle (clockwise from top) from the button center to the cursor.
-            const angle = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
-            e.currentTarget.style.setProperty('--aries-from', `${angle}deg`);
-          }}
-          className={cn(
-            'aries-outline group/aries mr-1 flex shrink-0 items-center rounded-xl p-[1.5px]',
-            'transition-shadow duration-150 hover:shadow-[0_2px_10px_-2px_rgba(0,103,210,0.45)]',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1'
-          )}
-          style={{ background: 'linear-gradient(135deg, #0067D2 0%, #00B8D9 100%)' }}
-        >
-          <span
-            className="relative z-[1] flex items-center gap-1.5 rounded-[10px] bg-white px-3 py-1.5 text-[13px] font-semibold transition-colors duration-150 group-hover/aries:bg-[#F5FAFF]"
-            style={{ color: '#0067D2' }}
-          >
-            <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-            <span className="whitespace-nowrap">Ask ARIES</span>
-          </span>
-        </button>
-
         <a
           href="/help"
           onClick={(e) => e.preventDefault()}

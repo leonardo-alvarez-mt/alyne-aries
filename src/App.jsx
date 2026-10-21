@@ -4,6 +4,13 @@ import { PasswordGate } from './components/PasswordGate';
 import { ShellProvider, useShell } from './components/shell/ShellContext';
 import { ShellLayout } from './components/shell/organisms/ShellLayout';
 import AlyneHome from './pages/alyne/AlyneHome';
+import AriesLayout from './pages/alyne/aries/AriesLayout';
+import AriesChat from './pages/alyne/aries/AriesChat';
+import AriesAgents from './pages/alyne/aries/AriesAgents';
+import AriesSkills from './pages/alyne/aries/AriesSkills';
+import AriesKnowledge from './pages/alyne/aries/AriesKnowledge';
+import AriesAdmin from './pages/alyne/aries/AriesAdmin';
+import AriesHistory from './pages/alyne/aries/AriesHistory';
 import GovernanceControls from './pages/alyne/GovernanceControls';
 import GovernanceControlSets from './pages/alyne/GovernanceControlSets';
 import GovernanceControlSetDetails from './pages/alyne/GovernanceControlSetDetails';
@@ -19,9 +26,18 @@ const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
  * Pages only pass `trailing` when the leaf isn't a nav entry — a record detail
  * page whose label comes from the record itself.
  */
-function ShellFrame({ trailing, children }) {
-  return <ShellLayout trailing={trailing}>{children}</ShellLayout>;
+function ShellFrame({ trailing, breadcrumbs, children }) {
+  return (
+    <ShellLayout trailing={trailing} breadcrumbs={breadcrumbs}>
+      {children}
+    </ShellLayout>
+  );
 }
+
+const ARIES_BREADCRUMBS = [
+  { label: 'Home', href: '/' },
+  { label: 'ARIES™' },
+];
 
 /**
  * The appearance panel replaces the page content instead of floating over it, so
@@ -71,6 +87,25 @@ export default function App() {
                 </ShellFrame>
               }
             />
+
+            <Route
+              path="aries"
+              element={
+                <ShellFrame breadcrumbs={ARIES_BREADCRUMBS}>
+                  <AriesLayout />
+                </ShellFrame>
+              }
+            >
+              <Route index element={<AriesChat />} />
+              <Route path="chat/:chatId" element={<AriesChat />} />
+              <Route path="agents" element={<AriesAgents />} />
+              <Route path="skills" element={<AriesSkills />} />
+              <Route path="knowledge" element={<AriesKnowledge />} />
+              <Route path="knowledge/:section" element={<AriesKnowledge />} />
+              <Route path="admin" element={<AriesAdmin />} />
+              <Route path="admin/:section" element={<AriesAdmin />} />
+              <Route path="history" element={<AriesHistory />} />
+            </Route>
 
             {/* Governance */}
             <Route path="governance" element={<Navigate to="/governance/controls" replace />} />

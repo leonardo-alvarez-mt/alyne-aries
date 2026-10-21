@@ -4,7 +4,6 @@ import { ProductSidebar } from './ProductSidebar';
 import { SecondaryTopNav } from './SecondaryTopNav';
 import { MobileSidebarDrawer } from './MobileSidebarDrawer';
 import { ShellAppearancePanel } from './ShellAppearancePanel';
-import { SidebarEdgeToggle } from '../molecules/SidebarEdgeToggle';
 import { useShell } from '../ShellContext';
 import { useShellBreadcrumbs } from '../useShellBreadcrumbs';
 
@@ -42,7 +41,6 @@ export function ShellLayout({ children, breadcrumbs, trailing }) {
             <div className="h-full overflow-hidden">
               <ProductSidebar />
             </div>
-            <SidebarEdgeToggle />
           </div>
         )}
         <main

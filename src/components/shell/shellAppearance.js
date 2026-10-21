@@ -1,6 +1,6 @@
 const SHARED_SURFACES = {
   headerBg: '#FFFFFF',
-  sidebarBg: '#FCFDFF',
+  sidebarBg: '#FFFFFF',
 };
 
 export const DEFAULT_SHELL_APPEARANCE = {

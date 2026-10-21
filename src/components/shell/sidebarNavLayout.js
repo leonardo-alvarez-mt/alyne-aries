@@ -19,8 +19,3 @@ export const NAV_ROW_INNER_CLASS = 'relative z-[1] flex h-8 w-full min-w-0 items
 /** 5.5rem rail — icon stacked above 10px label. */
 export const NAV_RAIL_ITEM_CLASS = 'relative flex w-full flex-col items-center gap-1 py-2.5';
 export const NAV_RAIL_LABEL_CLASS = 'w-full px-1 text-center text-[10px] font-medium leading-[1.2] line-clamp-2';
-
-/** Edge toggle vertical center — aligns with first nav icon (nav pt-3 + rail py-1.5 + half of 32px icon). */
-export const SIDEBAR_EDGE_TOGGLE_TOP_RAIL = '2.125rem';
-/** Expanded row: nav pt-3 + half of 32px row. */
-export const SIDEBAR_EDGE_TOGGLE_TOP_EXPANDED = '1.75rem';

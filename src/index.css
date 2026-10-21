@@ -79,7 +79,7 @@ html {
 }
 
 .sidebar-light {
-  --sb-bg: var(--shell-sidebar-bg);
+  --sb-bg: #ffffff;
   --sb-bg-hover: rgba(0,0,0,0.04);
   --sb-icon-active-bg: rgba(0,103,210,0.10);
   --sb-bg-active: rgba(37,99,235,0.07);
@@ -126,40 +126,158 @@ html {
   to   { transform: translateX(0); }
 }
 
-/* Ask ARIES gradient button — a flare that sweeps around the outline once on hover. */
-.aries-outline {
-  position: relative;
+/* ─── ARIES workspace (from ARIES-widget tokens / composer) ─── */
+
+.aries-workspace {
+  --aries-text-primary: #001a35;
+  --aries-text-secondary: #475569;
+  --aries-text-muted: #64748b;
+  --aries-bg-default: #ffffff;
+  --aries-bg-surface: #f8fafc;
+  --aries-bg-muted: #f1f5f9;
+  --aries-border: #e2e8f0;
+  --aries-border-strong: #cbd5e1;
+  --aries-primary: #0067d2;
+  --aries-primary-hover: #005bb8;
+  --aries-focus-ring: rgba(0, 103, 210, 0.08);
+  --aries-focus-border: rgba(0, 103, 210, 0.45);
+  --aries-welcome: #f2f7fd;
+  --aries-welcome-hover: #e8f1fc;
+  color: var(--aries-text-primary);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.aries-workspace .composer-panel {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #f9f9f9;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.08);
+  overflow: visible;
+}
+
+.aries-workspace .composer-panel:focus-within {
+  border-color: var(--aries-focus-border);
+  box-shadow:
+    0 0 0 3px var(--aries-focus-ring),
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.aries-workspace .composer-panel-field {
+  display: flex;
+  min-height: 100px;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 0.75rem;
+  transition: all 200ms;
+}
+
+.aries-workspace .composer-panel-field:focus-within {
+  border-color: var(--aries-focus-border);
+  box-shadow: 0 0 0 3px var(--aries-focus-ring);
+}
+
+.aries-workspace .assistant-typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--aries-primary);
+  animation: aries-caret 1s step-end infinite;
+}
+
+@keyframes aries-caret {
+  50% { opacity: 0; }
+}
+
+/* Welcome cards — match ARIES-widget host Preflight overrides */
+.aries-workspace button.welcome-card-collapsed {
+  background-color: #f2f7fd;
+}
+.aries-workspace button.welcome-card-collapsed:hover {
+  background-color: #e8f1fc;
+}
+.aries-workspace button.welcome-card-close {
+  background-color: #e4ebf3;
+}
+.aries-workspace button.welcome-card-close:hover {
+  background-color: #d7e1ec;
+}
+.aries-workspace img.size-3 {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.aries-workspace img.size-5 {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.risk-feed-table {
+  width: 100%;
   overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
 }
-.aries-outline::before {
-  content: '';
-  position: absolute;
-  inset: -60%;
-  border-radius: inherit;
-  /* Flare arc centered at 0deg; --aries-from rotates it to the hover point. */
-  background: conic-gradient(
-    from var(--aries-from, 0deg),
-    #ffffff 0deg,
-    rgba(127, 217, 255, 0.85) 10deg,
-    transparent 30deg,
-    transparent 330deg,
-    rgba(127, 217, 255, 0.85) 350deg,
-    #ffffff 360deg
-  );
-  opacity: 0;
-  transform: rotate(0deg);
-  pointer-events: none;
+
+.risk-feed-table table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
-.aries-outline:hover::before,
-.aries-outline.aries-flare-run::before {
-  animation: aries-flare 1300ms ease-out 1;
+
+.risk-feed-table thead tr,
+.risk-feed-table tbody tr {
+  border: 0;
 }
-@keyframes aries-flare {
-  0%   { transform: rotate(0deg);   opacity: 0; }
-  15%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { transform: rotate(180deg); opacity: 0; }
+
+.risk-feed-table thead {
+  background: #f1f5f9;
 }
-@media (prefers-reduced-motion: reduce) {
-  .aries-outline:hover::before { animation: none; }
+
+.risk-feed-table th {
+  height: auto;
+  margin: 0;
+  padding: 12px 20px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #666666;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-align: left;
+  text-transform: uppercase;
 }
+
+.risk-feed-table td {
+  padding: 14px 20px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+  vertical-align: middle;
+}
+
+.risk-feed-table tbody tr {
+  cursor: pointer;
+  background-color: #ffffff;
+}
+
+.risk-feed-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.025);
+}
+
+.risk-feed-table tbody tr[data-state="selected"],
+.risk-feed-table tbody tr[data-state="selected"]:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+

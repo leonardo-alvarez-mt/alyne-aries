@@ -7,7 +7,7 @@
  * breadcrumb ancestors, and its `path` is its route.
  *
  * Only a subset of these paths has a page behind it in this prototype
- * (Home, Governance > Controls / Control Sets, Compliance > Questionnaires,
+ * (Home, ARIES, Governance > Controls / Control Sets, Compliance > Questionnaires,
  * Risk). The rest are kept so the sidebar reads like the real product; they
  * fall through to the catch-all route and return to Home.
  */
@@ -22,6 +22,7 @@ export const alyneNavSections = [
     label: '',
     items: [
       { id: 'home', label: 'Home', icon: I.home, activeIcon: I.home, path: '/' },
+      { id: 'aries', label: 'ARIES™', icon: I.aries, activeIcon: I.aries, path: '/aries' },
       {
         id: 'governance',
         label: 'Governance',
