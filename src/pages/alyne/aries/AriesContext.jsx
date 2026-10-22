@@ -27,6 +27,21 @@ function loadVersion() {
   return 'v1';
 }
 
+function attachmentMeta(files) {
+  return (files || []).map((file) => ({
+    name: file.name,
+    size: file.size,
+    type: file.type || '',
+    ...(file.text ? { text: file.text } : {}),
+  }));
+}
+
+function replyWithAttachments(reply, attachments) {
+  if (!attachments.length) return reply;
+  const listed = attachments.map((file) => file.name).join(', ');
+  return { ...reply, content: `I received ${listed}.\n\n${reply.content}` };
+}
+
 function uid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -69,16 +84,17 @@ export function AriesProvider({ children }) {
 
   const getChat = useCallback((id) => chats.find((c) => c.id === id), [chats]);
 
-  const createChat = useCallback((prompt, skillId) => {
-    const reply = scriptedReply(prompt, companyProfile, glossary);
+  const createChat = useCallback((prompt, skillId, files) => {
+    const attachments = attachmentMeta(files);
+    const reply = replyWithAttachments(scriptedReply(prompt, companyProfile, glossary), attachments);
     const chatId = uid('ch');
     const chat = {
       id: chatId,
-      title: titleFromPrompt(prompt),
+      title: titleFromPrompt(prompt.trim() || attachments[0]?.name || 'New chat'),
       skillId: skillId || reply.skillId || null,
       updatedAt: new Date().toISOString(),
       messages: [
-        { id: uid('m'), role: 'user', content: prompt },
+        { id: uid('m'), role: 'user', content: prompt, attachments },
         assistantMessage(reply),
       ],
     };
@@ -90,19 +106,20 @@ export function AriesProvider({ children }) {
     return chatId;
   }, [companyProfile, glossary]);
 
-  const sendMessage = useCallback((chatId, prompt) => {
-    const reply = scriptedReply(prompt, companyProfile, glossary);
+  const sendMessage = useCallback((chatId, prompt, files) => {
+    const attachments = attachmentMeta(files);
+    const reply = replyWithAttachments(scriptedReply(prompt, companyProfile, glossary), attachments);
     setChats((prev) =>
       prev.map((chat) => {
         if (chat.id !== chatId) return chat;
         return {
           ...chat,
-          title: chat.messages.length <= 1 ? titleFromPrompt(prompt) : chat.title,
+          title: chat.messages.length <= 1 ? titleFromPrompt(prompt.trim() || attachments[0]?.name || chat.title) : chat.title,
           skillId: chat.skillId || reply.skillId || null,
           updatedAt: new Date().toISOString(),
           messages: [
             ...chat.messages,
-            { id: uid('m'), role: 'user', content: prompt },
+            { id: uid('m'), role: 'user', content: prompt, attachments },
             assistantMessage(reply),
           ],
         };

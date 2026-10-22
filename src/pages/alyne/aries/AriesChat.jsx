@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import { BookOpen, BarChart3, Check, ChevronDown, ChevronUp, ChevronsUpDown, Copy, CornerDownRight, Database, Download, FileText, GitBranch, ListChecks, Maximize2, MoreHorizontal, Plus, Search, Share, Shield, Shuffle, Sparkles, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { BookOpen, BarChart3, Check, ChevronDown, ChevronRight, ChevronUp, Copy, CornerDownRight, Database, Download, FileText, GitBranch, ListChecks, MoreHorizontal, Plus, Search, Share, Shield, Shuffle, Sparkles, Table2, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { publicPath } from '../../../lib/publicPath';
-import { selectChevronClass } from '../../../components/ui/selectField';
 import { useAries } from './AriesContext';
 import AgentSetupThread from './agentSetup/AgentSetupThread';
-import { BCP_TABLE_ROWS, exportCsv } from './ariesData';
+import { BCP_TABLE_ROWS, VENDOR_BRIEFING_HTML, exportCsv } from './ariesData';
 import { ContextTab, DocumentTab, WidgetTab } from './AriesOutputs';
+import { AriesVersionPill } from './AriesVersionPill';
 import { HOME_USE_CASES } from './welcomeCardsConfig';
 import { ariesFocus } from './ariesUi';
 import { cn } from '../../../utils/cn';
@@ -26,6 +25,62 @@ function ArrowUpIcon() {
   );
 }
 
+const ATTACHMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xlsx', 'csv', 'md', 'markdown', 'png', 'jpg', 'jpeg', 'gif', 'webp']);
+const ATTACHMENT_ACCEPT = '.pdf,.doc,.docx,.xlsx,.csv,.md,.markdown,.png,.jpg,.jpeg,.gif,.webp';
+const LONG_PASTE_LENGTH = 2000;
+
+function pastedTextName(files) {
+  const used = new Set(files.map((file) => file.name));
+  if (!used.has('Pasted text.txt')) return 'Pasted text.txt';
+  let index = 2;
+  while (used.has(`Pasted text (${index}).txt`)) index += 1;
+  return `Pasted text (${index}).txt`;
+}
+
+function attachmentExt(name) {
+  return name.split('.').pop()?.toLowerCase() || '';
+}
+
+function attachmentLabel(name) {
+  const ext = attachmentExt(name);
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return 'IMG';
+  if (ext === 'markdown') return 'MD';
+  return ext.slice(0, 4).toUpperCase();
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileChip({ file, onRemove }) {
+  return (
+    <span className="inline-flex max-w-[240px] items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white py-1 pl-1 pr-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#e8f2fc] text-[9px] font-semibold tracking-[0.04em] text-[#0067D2]">
+        {attachmentLabel(file.name)}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] font-medium leading-4 text-[#0f172a]">{file.name}</span>
+        <span className="block text-[11px] leading-4 text-[#64748b]">{formatFileSize(file.size)}</span>
+      </span>
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${file.name}`}
+          className={cn(
+            'inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
+            ariesFocus
+          )}
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
 function Composer({
   onSend,
   placeholder = 'Ask ARIES anything…',
@@ -36,7 +91,11 @@ function Composer({
   className,
 }) {
   const [value, setValue] = useState('');
+  const [files, setFiles] = useState([]);
+  const [fileError, setFileError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const ref = useRef(null);
+  const fileInputRef = useRef(null);
   const wasDisabled = useRef(disabled);
 
   useEffect(() => {
@@ -44,14 +103,62 @@ function Composer({
     wasDisabled.current = disabled;
   }, [disabled]);
 
-  function submit() {
-    const trimmed = value.trim();
-    if (!trimmed || disabled) return;
-    onSend(trimmed);
-    setValue('');
+  function addFiles(list) {
+    const rejected = [];
+    const accepted = [];
+    for (const file of list) {
+      if (!ATTACHMENT_EXTENSIONS.has(attachmentExt(file.name))) {
+        rejected.push(file.name);
+        continue;
+      }
+      accepted.push({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        name: file.name,
+        size: file.size,
+        type: file.type || '',
+      });
+    }
+    if (accepted.length) {
+      setFiles((current) => {
+        const seen = new Set(current.map((file) => file.id));
+        return [...current, ...accepted.filter((file) => !seen.has(file.id))];
+      });
+    }
+    setFileError(rejected.length ? 'Only PDF, Word, Excel, CSV, Markdown, and images can be attached.' : '');
   }
 
-  const canSubmit = !disabled && Boolean(value.trim());
+  function addPastedText(text) {
+    setFiles((current) => [
+      ...current,
+      {
+        id: `paste-${Date.now()}-${current.length}`,
+        name: pastedTextName(current),
+        size: new Blob([text]).size,
+        type: 'text/plain',
+        text,
+      },
+    ]);
+    setFileError('');
+  }
+
+  function onPaste(event) {
+    if (disabled) return;
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (text.trim().length < LONG_PASTE_LENGTH) return;
+    event.preventDefault();
+    addPastedText(text);
+  }
+
+  function submit() {
+    const trimmed = value.trim();
+    if (disabled || (!trimmed && files.length === 0)) return;
+    onSend(trimmed, files);
+    setValue('');
+    setFiles([]);
+    setFileError('');
+  }
+
+  const canSubmit = !disabled && (Boolean(value.trim()) || files.length > 0);
 
   return (
     <div className={cn('mx-auto w-full max-w-[720px] px-6', className)}>
@@ -64,12 +171,34 @@ function Composer({
           </div>
         ) : null}
         <div className="p-[2px]">
-          <div className="composer-panel-field">
+          <div
+            className={cn('composer-panel-field', dragOver && 'is-dropping')}
+            onDragOver={(event) => {
+              if (disabled) return;
+              event.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(event) => {
+              if (disabled) return;
+              event.preventDefault();
+              setDragOver(false);
+              addFiles(event.dataTransfer.files);
+            }}
+          >
+            {files.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {files.map((file) => (
+                  <FileChip key={file.id} file={file} onRemove={() => setFiles((current) => current.filter((item) => item.id !== file.id))} />
+                ))}
+              </div>
+            )}
             <textarea
               ref={ref}
               rows={2}
               value={value}
               onChange={(e) => setValue(e.target.value)}
+              onPaste={onPaste}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -82,11 +211,26 @@ function Composer({
               className="max-h-[120px] min-h-[48px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-[#001a35] placeholder:text-[#94a3b8] focus:outline-none disabled:cursor-not-allowed"
             />
             <div className="flex shrink-0 items-center justify-between">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ATTACHMENT_ACCEPT}
+                className="sr-only"
+                aria-hidden
+                tabIndex={-1}
+                onChange={(event) => {
+                  addFiles(event.target.files);
+                  event.target.value = '';
+                }}
+              />
               <button
                 type="button"
-                aria-label="Add files or skills"
+                aria-label="Add files"
+                disabled={disabled}
+                onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  'flex size-8 items-center justify-center rounded-full bg-[#FAFAFA] text-[#64748B] transition-colors hover:bg-[#f1f5f9] hover:text-[#001A35]',
+                  'flex size-8 items-center justify-center rounded-full bg-[#FAFAFA] text-[#64748B] transition-colors hover:bg-[#f1f5f9] hover:text-[#001A35] disabled:cursor-not-allowed disabled:opacity-40',
                   ariesFocus
                 )}
               >
@@ -111,6 +255,7 @@ function Composer({
           </div>
         </div>
       </div>
+      {fileError ? <p className="mt-2 text-center text-[12px] text-[#b45309]">{fileError}</p> : null}
       {showDisclaimer && (
         <p className="mt-2 text-center text-[11px] text-[#64748b]">
           ARIES can make mistakes. Verify answers against your policies and records.
@@ -218,8 +363,8 @@ function NewChatHome() {
   const { createChat } = useAries();
   const navigate = useNavigate();
 
-  function start(prompt, skillId) {
-    const id = createChat(prompt, skillId);
+  function start(prompt, skillId, attachments) {
+    const id = createChat(prompt, skillId, attachments);
     navigate(`/aries/chat/${id}`);
   }
 
@@ -240,7 +385,7 @@ function NewChatHome() {
           </h1>
 
           <Composer
-            onSend={(prompt) => start(prompt)}
+            onSend={(prompt, attachments) => start(prompt, undefined, attachments)}
             showHeader={false}
             showDisclaimer
             className="px-0"
@@ -455,7 +600,18 @@ function Conversation() {
   const chat = getChat(chatId);
   const lastTurnRef = useRef(null);
   const seenTurns = useRef(null);
+  const outputCardRef = useRef(null);
   const [workStep, setWorkStep] = useState(0);
+  const [openOutputMessageId, setOpenOutputMessageId] = useState(null);
+
+  function closeOutput() {
+    setOpenOutputMessageId(null);
+    outputCardRef.current?.focus();
+  }
+
+  useEffect(() => {
+    setOpenOutputMessageId(null);
+  }, [chatId]);
   const pendingId = chat?.messages.find((message) => message.role === 'assistant' && message.pending)?.id;
   const turnCount = chat?.messages.filter((message) => message.role === 'user').length ?? 0;
 
@@ -490,10 +646,12 @@ function Conversation() {
   if (chat.kind === 'agent-setup') return <AgentSetupConversation key={chat.id} chat={chat} />;
 
   const turns = turnsFrom(chat.messages);
+  const openOutput = chat.messages.find((message) => message.id === openOutputMessageId);
 
   return (
     <div className="flex h-full min-w-0 bg-[#f8fafc]">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {openOutputMessageId && <AriesVersionPill />}
         <div className="flex-1 overflow-y-auto px-6 pb-10 pt-16">
           <div className="mx-auto flex max-w-[720px] flex-col gap-12">
             {turns.map((turn, index) => (
@@ -503,9 +661,20 @@ function Conversation() {
                 className="group/answer scroll-mt-16"
               >
                 <div className="flex justify-end">
-                  <p className="m-0 max-w-[80%] whitespace-pre-wrap rounded-2xl bg-[#eef1f5] px-4 py-2.5 text-[15px] leading-6 text-[#0f172a]">
-                    {turn.user.content}
-                  </p>
+                  <div className="flex max-w-[80%] flex-col items-end gap-2">
+                    {turn.user.attachments?.length > 0 && (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {turn.user.attachments.map((file) => (
+                          <FileChip key={`${file.name}-${file.size}`} file={file} />
+                        ))}
+                      </div>
+                    )}
+                    {turn.user.content ? (
+                      <p className="m-0 whitespace-pre-wrap rounded-2xl bg-[#eef1f5] px-4 py-2.5 text-[15px] leading-6 text-[#0f172a]">
+                        {turn.user.content}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="mt-6">
                   {!turn.assistant || turn.assistant.pending ? (
@@ -515,6 +684,9 @@ function Conversation() {
                       message={turn.assistant}
                       latest={index === turns.length - 1}
                       onFollowUp={(prompt) => sendMessage(chat.id, prompt)}
+                      outputOpen={openOutputMessageId === turn.assistant.id}
+                      onOpenOutput={() => setOpenOutputMessageId(turn.assistant.id)}
+                      outputCardRef={openOutputMessageId === turn.assistant.id ? outputCardRef : undefined}
                     />
                   )}
                 </div>
@@ -524,13 +696,14 @@ function Conversation() {
         </div>
 
         <Composer
-          onSend={(prompt) => sendMessage(chatId, prompt)}
+          onSend={(prompt, attachments) => sendMessage(chatId, prompt, attachments)}
           placeholder="Ask a follow-up"
           showHeader={false}
           showDisclaimer={false}
           className="bg-[#f8fafc] pb-5 pt-2"
         />
       </div>
+      {openOutput && <RecoveryOutputPanel outputId={openOutput.outputId} onClose={closeOutput} />}
     </div>
   );
 }
@@ -565,29 +738,39 @@ function recoveryTableText(rows) {
   return [header, ...body].join('\n');
 }
 
-function RecoveryCells({ row }) {
-  return RECOVERY_COLUMNS.map((column) => {
-    const value = row[column.key];
-    if (column.key === 'id') {
-      return (
-        <td key={column.key} className="whitespace-nowrap px-4 py-3 text-[13px] font-medium text-[#0067D2]">
-          {value}
-        </td>
-      );
-    }
-    if (column.key === 'title') {
-      return (
-        <td key={column.key} className="px-4 py-3 text-[13px] text-[#001a35]">
-          {value}
-        </td>
-      );
-    }
-    return (
-      <td key={column.key} className="whitespace-nowrap px-4 py-3 text-[13px] text-[#475569]">
-        {value}
-      </td>
-    );
-  });
+const GRID_COLUMNS = [
+  { key: 'title', label: 'Title', width: 'min-w-[280px]' },
+  { key: 'rating', label: 'Rating', width: 'min-w-[120px]' },
+  { key: 'recovery', label: 'Recovery', width: 'min-w-[130px]' },
+  { key: 'owner', label: 'Owner', width: 'min-w-[180px]' },
+];
+
+const gridCell = 'border-r border-[#eef2f6] last:border-r-0';
+
+function useRecoveryRows() {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState(null);
+
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const filtered = needle
+      ? BCP_TABLE_ROWS.filter((row) =>
+          RECOVERY_COLUMNS.some((column) => String(row[column.key]).toLowerCase().includes(needle))
+        )
+      : BCP_TABLE_ROWS;
+    if (!sort) return filtered;
+    const direction = sort.direction === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => compareRecoveryRows(a, b, sort.key) * direction);
+  }, [query, sort]);
+
+  function toggleSort(key) {
+    setSort((current) => {
+      if (current?.key !== key) return { key, direction: 'asc' };
+      return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }
+
+  return { rows, query, setQuery, sort, toggleSort };
 }
 
 function TableIconButton({ label, onClick, disabled, children, buttonRef, tip = 'above' }) {
@@ -618,7 +801,7 @@ function TableIconButton({ label, onClick, disabled, children, buttonRef, tip = 
   );
 }
 
-function RecoveryTableActions({ rows, expandRef, onExpand, tip }) {
+function RecoveryTableActions({ rows, tip }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -639,188 +822,63 @@ function RecoveryTableActions({ rows, expandRef, onExpand, tip }) {
       <TableIconButton label="Download CSV" onClick={() => exportCsv(rows)} disabled={!rows.length} tip={tip}>
         <Download className="size-4" strokeWidth={1.75} aria-hidden />
       </TableIconButton>
-      {onExpand && (
-        <TableIconButton label="Expand table" onClick={onExpand} buttonRef={expandRef} tip={tip}>
-          <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden />
-        </TableIconButton>
-      )}
     </>
   );
 }
 
-function RecoveryTableDialog({ onClose }) {
-  const [query, setQuery] = useState('');
-  const [rating, setRating] = useState('all');
-  const [owner, setOwner] = useState('all');
-  const [sort, setSort] = useState(null);
-  const searchRef = useRef(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+function RecoveryTableView({ rows, sort, onSort }) {
+  const scrollRef = useRef(null);
+  const [moreColumns, setMoreColumns] = useState(false);
 
   useEffect(() => {
-    searchRef.current?.focus();
-    const onKey = (event) => {
-      if (event.key === 'Escape') onCloseRef.current();
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    const update = () => setMoreColumns(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer.disconnect();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [rows.length]);
 
-  const owners = useMemo(
-    () => [...new Set(BCP_TABLE_ROWS.map((row) => row.owner))].sort((a, b) => a.localeCompare(b)),
-    []
-  );
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return BCP_TABLE_ROWS.filter((row) => {
-      if (rating !== 'all' && row.rating !== rating) return false;
-      if (owner !== 'all' && row.owner !== owner) return false;
-      if (!needle) return true;
-      return [row.id, row.title, row.owner].some((value) => value.toLowerCase().includes(needle));
-    });
-  }, [query, rating, owner]);
-
-  const rows = useMemo(() => {
-    if (!sort) return filtered;
-    const direction = sort.direction === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => compareRecoveryRows(a, b, sort.key) * direction);
-  }, [filtered, sort]);
-
-  const filtersActive = query.trim() !== '' || rating !== 'all' || owner !== 'all';
-
-  function toggleSort(key) {
-    setSort((current) => {
-      if (current?.key !== key) return { key, direction: 'asc' };
-      return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
-    });
+  function showMoreColumns() {
+    const el = scrollRef.current;
+    if (el) el.scrollBy({ left: el.clientWidth * 0.6, behavior: 'smooth' });
   }
 
-  function clearFilters() {
-    setQuery('');
-    setRating('all');
-    setOwner('all');
-  }
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/40 p-4"
-      onMouseDown={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recovery-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-        className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]"
-      >
-        <div className="flex items-center gap-3 border-b border-[#e2e8f0] px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <h2 id="recovery-dialog-title" className="m-0 text-[16px] font-semibold text-[#001a35]">
-              Recovery priorities
-            </h2>
-            <p className="m-0 mt-0.5 text-[12px] text-[#64748b]" aria-live="polite">
-              {rows.length} of {BCP_TABLE_ROWS.length}
-            </p>
-          </div>
-          <div className="relative z-20 flex items-center gap-0.5">
-            <RecoveryTableActions rows={rows} tip="below" />
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className={cn(
-              'inline-flex size-8 items-center justify-center rounded-md text-[#475569] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
-              ariesFocus
-            )}
-          >
-            <X className="size-4" aria-hidden />
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] px-5 py-3">
-          <label className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              aria-label="Search risks"
-              className={cn(tableField, 'w-full pl-9 pr-3')}
-            />
-          </label>
-          <select
-            value={rating}
-            onChange={(event) => setRating(event.target.value)}
-            aria-label="Rating"
-            className={cn(tableField, 'px-3', selectChevronClass)}
-          >
-            <option value="all">All ratings</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-          <select
-            value={owner}
-            onChange={(event) => setOwner(event.target.value)}
-            aria-label="Owner"
-            className={cn(tableField, 'px-3', selectChevronClass)}
-          >
-            <option value="all">All owners</option>
-            {owners.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className={cn(
-                'inline-flex h-9 items-center rounded-lg px-2.5 text-[13px] font-medium text-[#475569] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
-                ariesFocus
-              )}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[720px] border-collapse text-left">
-            <thead className="sticky top-0 z-10 bg-[#f1f5f9]">
-              <tr>
-                {RECOVERY_COLUMNS.map((column) => {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="h-full overflow-auto border-t border-[#e2e8f0]">
+          <table className="w-full border-collapse text-left">
+            <thead className="sticky top-0 z-10 bg-white">
+              <tr className="border-b border-[#e2e8f0]">
+                <th scope="col" className={cn(gridCell, 'w-10 min-w-10 px-2 py-2.5')}>
+                  <span className="sr-only">Row</span>
+                </th>
+                {GRID_COLUMNS.map((column) => {
                   const active = sort?.key === column.key;
                   const ariaSort = active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none';
                   return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      aria-sort={ariaSort}
-                      className="whitespace-nowrap px-2 py-1 text-left"
-                    >
+                    <th key={column.key} scope="col" aria-sort={ariaSort} className={cn(gridCell, column.width, 'p-0')}>
                       <button
                         type="button"
-                        onClick={() => toggleSort(column.key)}
+                        onClick={() => onSort(column.key)}
                         className={cn(
-                          'inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#64748b] transition-colors hover:bg-[#e2e8f0] hover:text-[#001a35]',
+                          'flex w-full items-center gap-1 px-3 py-2.5 text-left text-[13px] font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#001a35]',
                           ariesFocus
                         )}
                       >
                         {column.label}
-                        {active ? (
-                          sort.direction === 'asc' ? (
+                        {active &&
+                          (sort.direction === 'asc' ? (
                             <ChevronUp className="size-3.5" aria-hidden />
                           ) : (
                             <ChevronDown className="size-3.5" aria-hidden />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="size-3.5 opacity-40" aria-hidden />
-                        )}
+                          ))}
                       </button>
                     </th>
                   );
@@ -830,23 +888,48 @@ function RecoveryTableDialog({ onClose }) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={RECOVERY_COLUMNS.length} className="px-4 py-12 text-center text-[13px] text-[#64748b]">
-                    No risks match these filters.
+                  <td colSpan={GRID_COLUMNS.length + 1} className="px-4 py-12 text-center text-[13px] text-[#64748b]">
+                    No risks match this search.
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="border-t border-[#e2e8f0] transition-colors hover:bg-[#f8fafc]">
-                    <RecoveryCells row={row} />
+                rows.map((row, index) => (
+                  <tr key={row.id} className="border-b border-[#eef2f6] transition-colors hover:bg-[#f8fafc]">
+                    <td className={cn(gridCell, 'px-2 py-2 text-center text-[12px] tabular-nums text-[#94a3b8]')}>
+                      {index + 1}
+                    </td>
+                    <td className={cn(gridCell, 'px-3 py-2')}>
+                      <span className="flex items-center gap-2.5">
+                        <span className="shrink-0 rounded-md bg-[#e8f2fc] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-[#0067D2]">
+                          {row.id}
+                        </span>
+                        <span className="truncate text-[13px] text-[#0f172a]">{row.title}</span>
+                      </span>
+                    </td>
+                    <td className={cn(gridCell, 'whitespace-nowrap px-3 py-2 text-[13px] text-[#334155]')}>{row.rating}</td>
+                    <td className={cn(gridCell, 'whitespace-nowrap px-3 py-2 text-[13px] text-[#334155]')}>{row.recovery}</td>
+                    <td className={cn(gridCell, 'whitespace-nowrap px-3 py-2 text-[13px] text-[#334155]')}>{row.owner}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {moreColumns && (
+          <button
+            type="button"
+            onClick={showMoreColumns}
+            className={cn(
+              'absolute bottom-3 right-3 z-20 inline-flex items-center gap-1 rounded-full bg-[#0f172a] py-1.5 pl-3.5 pr-2.5 text-[13px] font-medium text-white shadow-[0_8px_24px_rgba(15,23,42,0.22)] transition-colors hover:bg-[#1e293b]',
+              ariesFocus
+            )}
+          >
+            More columns
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
 
@@ -863,91 +946,226 @@ const OUTPUT_TABS = {
   ],
 };
 
-function InlineRecoveryTable() {
+function OutputTabs({ tabs, activeTab, onChange }) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5" role="tablist" aria-label="Output view">
+      {tabs.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === item.id}
+          onClick={() => onChange(item.id)}
+          className={cn(
+            'rounded-md px-1.5 py-1 text-[12.5px] font-medium transition-colors',
+            ariesFocus,
+            activeTab === item.id
+              ? 'bg-[#e8f2fc] text-[#0067D2]'
+              : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#001a35]'
+          )}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function OutputFileCard({ title, subtitle, mark, selected, onOpen, cardRef }) {
+  return (
+    <button
+      ref={cardRef}
+      type="button"
+      onClick={onOpen}
+      aria-expanded={selected}
+      aria-controls="recovery-output-panel"
+      className={cn(
+        'group/card relative mt-5 flex w-full items-center gap-4 overflow-hidden rounded-xl border bg-white px-4 py-3 text-left transition-[border-color,box-shadow] duration-200',
+        ariesFocus,
+        selected
+          ? 'border-[#93c5fd] shadow-[0_0_18px_-6px_rgba(0,103,210,0.28)]'
+          : 'border-[#cfe1f7] shadow-[0_0_14px_-8px_rgba(0,103,210,0.16)] hover:border-[#a9cdf5] hover:shadow-[0_0_16px_-6px_rgba(0,103,210,0.22)]'
+      )}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,#ffffff_0%,#ffffff_35%,#f2f8ff_100%)]"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,103,210,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(0,103,210,0.07)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:linear-gradient(90deg,transparent_15%,rgba(0,0,0,0.5)_55%,#000_100%)]"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'aries-glint-border transition-opacity duration-200',
+          selected ? 'opacity-100' : 'opacity-80 group-hover/card:opacity-100'
+        )}
+      />
+      <span className="relative min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium text-[#0f172a]">{title}</span>
+        <span className="mt-0.5 block text-[13px] text-[#64748b]">{subtitle}</span>
+      </span>
+      <span
+        aria-hidden
+        className="relative flex size-12 shrink-0 items-center justify-center rounded-lg border border-[#d6e6f8] bg-white/80 text-[#0067D2] shadow-[0_4px_12px_-4px_rgba(0,103,210,0.25)] backdrop-blur-[2px]"
+      >
+        {mark}
+      </span>
+    </button>
+  );
+}
+
+function RecoveryFileCard(props) {
+  return (
+    <OutputFileCard
+      {...props}
+      title="Recovery priorities"
+      subtitle={`${BCP_TABLE_ROWS.length} open risks`}
+      mark={<Table2 className="size-5" strokeWidth={1.75} />}
+    />
+  );
+}
+
+function HtmlFileCard(props) {
+  return (
+    <OutputFileCard
+      {...props}
+      title="Northwind Cloud briefing"
+      subtitle="HTML report"
+      mark={<span className="font-mono text-[13px] font-semibold tracking-tight">&lt;/&gt;</span>}
+    />
+  );
+}
+
+const HTML_TABS = [
+  { id: 'preview', label: 'Preview' },
+  { id: 'code', label: 'Code' },
+];
+
+function downloadHtml() {
+  const blob = new Blob([VENDOR_BRIEFING_HTML], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'northwind-cloud-briefing.html';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function RecoveryOutputPanel({ outputId, onClose }) {
   const { version } = useAries();
-  const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('table');
-  const expandRef = useRef(null);
+  const [htmlTab, setHtmlTab] = useState('preview');
+  const recovery = useRecoveryRows();
+  const closeRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const tabs = OUTPUT_TABS[version] || OUTPUT_TABS.v1;
   const activeTab = tabs.some((item) => item.id === tab) ? tab : 'table';
+  const htmlView = outputId === 'out-vendor-html';
 
-  function close() {
-    setOpen(false);
-    expandRef.current?.focus();
-  }
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event) => {
+      if (event.key === 'Escape') onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
-    <>
-      <div className="mt-5">
-        <h3 id="recovery-table-title" className="m-0 text-[14px] font-semibold text-[#001a35]">
-          Recovery priorities
-        </h3>
-        <p className="m-0 mt-0.5 text-[12px] text-[#64748b]">{BCP_TABLE_ROWS.length} open risks</p>
-        <div className="mt-3 flex gap-4 border-b border-[#e2e8f0]" role="tablist" aria-label="Output view">
-          {tabs.map((item) => (
+    <div className="flex h-full w-[min(720px,52%)] min-w-[440px] shrink-0 py-3 pr-3">
+      <section
+        id="recovery-output-panel"
+        aria-label={htmlView ? 'Northwind Cloud briefing' : 'Recovery priorities'}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
+      >
+        <div className="flex items-center gap-1.5 py-2.5 pl-3 pr-2">
+          {htmlView ? (
+            <span className="shrink-0 font-mono text-[12px] font-semibold text-[#475569]" aria-hidden>
+              &lt;/&gt;
+            </span>
+          ) : (
+            <Table2 className="size-4 shrink-0 text-[#475569]" strokeWidth={1.75} aria-hidden />
+          )}
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <h2 className="m-0 min-w-0 truncate text-[15px] font-semibold text-[#0f172a]">
+              {htmlView ? 'Northwind Cloud briefing' : 'Recovery priorities'}
+            </h2>
+            <span className="shrink-0 text-[13px] text-[#64748b]" aria-live="polite">
+              {htmlView
+                ? 'HTML report'
+                : `${recovery.rows.length} ${recovery.rows.length === 1 ? 'Record' : 'Records'}`}
+            </span>
+          </div>
+          <div className="relative z-20 flex shrink-0 items-center gap-0.5">
+            {htmlView ? (
+              <TableIconButton label="Download HTML" onClick={downloadHtml} tip="below">
+                <Download className="size-4" strokeWidth={1.75} aria-hidden />
+              </TableIconButton>
+            ) : (
+              <RecoveryTableActions rows={recovery.rows} tip="below" />
+            )}
             <button
-              key={item.id}
+              ref={closeRef}
               type="button"
-              role="tab"
-              aria-selected={activeTab === item.id}
-              onClick={() => setTab(item.id)}
+              onClick={onClose}
+              aria-label="Close"
               className={cn(
-                'relative -mb-px pb-2 text-[13px] font-medium transition-colors',
-                ariesFocus,
-                activeTab === item.id ? 'text-[#0067D2]' : 'text-[#64748b] hover:text-[#001a35]'
+                'inline-flex size-8 items-center justify-center rounded-md text-[#475569] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
+                ariesFocus
               )}
             >
-              {item.label}
-              <span
-                aria-hidden
-                className={cn(
-                  'absolute inset-x-0 -bottom-px h-0.5 rounded-full',
-                  activeTab === item.id ? 'bg-[#0067D2]' : 'bg-transparent'
-                )}
-              />
+              <X className="size-4" aria-hidden />
             </button>
-          ))}
+          </div>
         </div>
-        {activeTab !== 'table' ? (
-          <section className="mt-3 rounded-xl border border-[#e2e8f0] bg-white p-4" aria-labelledby="recovery-table-title">
+        <div className="flex items-center gap-2 px-3 pb-3">
+          {htmlView ? (
+            <OutputTabs tabs={HTML_TABS} activeTab={htmlTab} onChange={setHtmlTab} />
+          ) : (
+            <>
+          <OutputTabs tabs={tabs} activeTab={activeTab} onChange={setTab} />
+          {activeTab === 'table' && (
+            <label className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#94a3b8]" aria-hidden />
+              <input
+                value={recovery.query}
+                onChange={(event) => recovery.setQuery(event.target.value)}
+                placeholder="Search table"
+                aria-label="Search table"
+                className={cn(tableField, 'w-full pl-9 pr-3')}
+              />
+            </label>
+          )}
+            </>
+          )}
+        </div>
+        {htmlView ? (
+          htmlTab === 'code' ? (
+            <pre className="m-0 min-h-0 flex-1 overflow-auto border-t border-[#e2e8f0] bg-[#0f172a] p-4 font-mono text-[12px] leading-5 text-[#e2e8f0]">
+              {VENDOR_BRIEFING_HTML}
+            </pre>
+          ) : (
+            <iframe
+              title="Northwind Cloud briefing"
+              sandbox=""
+              srcDoc={VENDOR_BRIEFING_HTML}
+              className="min-h-0 w-full flex-1 border-0 border-t border-[#e2e8f0] bg-white"
+            />
+          )
+        ) : activeTab === 'table' ? (
+          <RecoveryTableView rows={recovery.rows} sort={recovery.sort} onSort={recovery.toggleSort} />
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#e2e8f0] p-5">
             {activeTab === 'widget' && <WidgetTab />}
             {activeTab === 'document' && <DocumentTab />}
             {activeTab === 'context' && <ContextTab />}
-          </section>
-        ) : (
-        <section className="relative mt-3 overflow-hidden rounded-xl border border-[#e2e8f0] bg-white" aria-labelledby="recovery-table-title">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] border-collapse text-left">
-              <thead className="bg-[#f1f5f9]">
-                <tr>
-                  {RECOVERY_COLUMNS.map((column) => (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      className="whitespace-nowrap px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#64748b]"
-                    >
-                      {column.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {BCP_TABLE_ROWS.map((row) => (
-                  <tr key={row.id} className="border-t border-[#e2e8f0]">
-                    <RecoveryCells row={row} />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
-          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-white p-0.5 shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
-            <RecoveryTableActions rows={BCP_TABLE_ROWS} expandRef={expandRef} onExpand={() => setOpen(true)} />
-          </div>
-        </section>
         )}
-      </div>
-      {open && <RecoveryTableDialog onClose={close} />}
-    </>
+      </section>
+    </div>
   );
 }
 
@@ -962,13 +1180,18 @@ function SourceCitation({ sources }) {
   );
 }
 
-function AnswerDocument({ message, latest, onFollowUp }) {
+function AnswerDocument({ message, latest, onFollowUp, outputOpen = false, onOpenOutput, outputCardRef }) {
   const sources = message.sources || [];
   const related = message.related || [];
   return (
     <div>
       <AnswerBody content={message.content} citation={<SourceCitation sources={sources} />} />
-      {message.outputId === 'out-bcp' && <InlineRecoveryTable />}
+      {message.outputId === 'out-bcp' && (
+        <RecoveryFileCard selected={outputOpen} onOpen={onOpenOutput} cardRef={outputCardRef} />
+      )}
+      {message.outputId === 'out-vendor-html' && (
+        <HtmlFileCard selected={outputOpen} onOpen={onOpenOutput} cardRef={outputCardRef} />
+      )}
       <AnswerActions content={message.content} sources={sources} revealOnHover={!latest} />
       {latest && related.length > 0 && (
         <div className="mt-2 border-t border-[#e6e6e6] pt-2">

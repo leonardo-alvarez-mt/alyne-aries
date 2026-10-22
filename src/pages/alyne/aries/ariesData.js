@@ -287,6 +287,70 @@ function daysAgo(n) {
   return d.toISOString();
 }
 
+export const VENDOR_BRIEFING_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Northwind Cloud — third-party risk briefing</title>
+<style>
+  body { margin: 0; background: #f4f7fb; color: #0f172a; font: 14px/1.5 "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 28px 24px 40px; }
+  header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+  .meta { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+  .decision { margin: 0; border-radius: 999px; background: #0067d2; color: #fff; padding: 6px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+  .metric { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+  .metric span { display: block; color: #64748b; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .metric strong { display: block; margin-top: 4px; font-size: 18px; }
+  .high { color: #b42318; }
+  .medium { color: #b54708; }
+  section { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; margin-top: 12px; }
+  h2 { margin: 0 0 8px; font-size: 14px; }
+  ul, ol { margin: 0; padding-left: 18px; }
+  li { margin: 6px 0; }
+  footer { margin-top: 16px; color: #64748b; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Northwind Cloud</h1>
+      <p class="meta">Third-party risk briefing · Design Corp · Risk committee</p>
+    </div>
+    <p class="decision">Approve with conditions</p>
+  </header>
+  <div class="metrics">
+    <div class="metric"><span>Inherent risk</span><strong class="high">High</strong></div>
+    <div class="metric"><span>Residual risk</span><strong class="medium">Medium</strong></div>
+    <div class="metric"><span>Data in scope</span><strong>Customer PII</strong></div>
+  </div>
+  <section>
+    <h2>Why this vendor is in front of the committee</h2>
+    <p>Northwind Cloud is a SaaS platform that would store and process Design Corp customer data for clients in EMEA and North America. The service is material: a disruption or a weak control here lands on the customer, not only on an internal tool.</p>
+  </section>
+  <section>
+    <h2>Control gaps</h2>
+    <ul>
+      <li><strong>SOC 2 Type II has expired.</strong> The last report covered the period ending 11 months ago. No bridge letter is on file.</li>
+      <li><strong>Subprocessor list is incomplete.</strong> Two hosting regions named in the contract are missing from the list shared with procurement.</li>
+      <li><strong>Incident notice is 72 hours.</strong> Design Corp’s standard for customer-data processors is 24 hours.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Conditions before go-live</h2>
+    <ol>
+      <li>Obtain a current SOC 2 Type II, or a signed bridge letter from the auditor, before production data is loaded.</li>
+      <li>Publish a complete subprocessor list, including both hosting regions, and add a change-notice clause.</li>
+      <li>Amend the contract so customer-data incidents are notified within 24 hours.</li>
+    </ol>
+  </section>
+  <footer>Prepared for the risk committee from the open vendor assessment, company profile, and glossary. Residual risk stays Medium only if all three conditions are met.</footer>
+</main>
+</body>
+</html>`;
+
 export const INITIAL_CHATS = [
   {
     id: 'ch-today',
@@ -306,6 +370,33 @@ export const INITIAL_CHATS = [
           'Which service should we recover first?',
           'What residual risk stays above appetite?',
           'Draft the board summary for this plan',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'ch-vendor-html',
+    title: 'Northwind Cloud vendor briefing',
+    skillId: null,
+    updatedAt: daysAgo(1),
+    messages: [
+      {
+        id: 'm1',
+        role: 'user',
+        content:
+          'Turn the latest assessment of Northwind Cloud into an HTML briefing for the risk committee. Cover inherent risk, control gaps, residual rating, and a decision.',
+      },
+      {
+        id: 'm2',
+        role: 'assistant',
+        content:
+          'I prepared a one-page briefing for the risk committee. Northwind Cloud would process Design Corp customer data, so the decision is Approve with conditions: inherent risk is High and residual risk is Medium only if the SOC 2, subprocessor, and 24-hour notice conditions are met.\n\nThe HTML report is below.',
+        outputId: 'out-vendor-html',
+        sources: ['Company profile', 'Open vendor assessment'],
+        related: [
+          'What happens if the SOC 2 is not renewed?',
+          'Draft the contract clause for 24-hour notice',
+          'Who should own these conditions?',
         ],
       },
     ],
@@ -370,6 +461,24 @@ export function scriptedReply(prompt, profile, glossary) {
         'Which service should we recover first?',
         'What residual risk stays above appetite?',
         'Draft the board summary for this plan',
+      ],
+    };
+  }
+  if (
+    lower.includes('vendor briefing') ||
+    lower.includes('html report') ||
+    lower.includes('html briefing') ||
+    (lower.includes('northwind') && lower.includes('html'))
+  ) {
+    return {
+      content:
+        'I prepared a one-page briefing for the risk committee. Northwind Cloud would process Design Corp customer data, so the decision is Approve with conditions: inherent risk is High and residual risk is Medium only if the SOC 2, subprocessor, and 24-hour notice conditions are met.\n\nThe HTML report is below.',
+      outputId: 'out-vendor-html',
+      sources: ['Company profile', 'Open vendor assessment'],
+      related: [
+        'What happens if the SOC 2 is not renewed?',
+        'Draft the contract clause for 24-hour notice',
+        'Who should own these conditions?',
       ],
     };
   }

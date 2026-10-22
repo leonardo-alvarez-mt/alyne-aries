@@ -178,6 +178,10 @@ html {
   transition: all 200ms;
 }
 
+.aries-workspace .composer-panel-field.is-dropping {
+  border-color: #93c5fd;
+}
+
 .aries-workspace .composer-panel-field:focus-within {
   border-color: var(--aries-focus-border);
   box-shadow: 0 0 0 3px var(--aries-focus-ring);
@@ -195,6 +199,22 @@ html {
 
 @keyframes aries-caret {
   50% { opacity: 0; }
+}
+
+.aries-glint-border {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(180px 56px at 6% 0%, #0067d2, rgba(0, 103, 210, 0) 72%),
+    radial-gradient(56px 64px at 0% 8%, rgba(0, 103, 210, 0.9), rgba(0, 103, 210, 0) 72%),
+    radial-gradient(180px 56px at 94% 100%, #0067d2, rgba(0, 103, 210, 0) 72%),
+    radial-gradient(56px 64px at 100% 92%, rgba(0, 103, 210, 0.9), rgba(0, 103, 210, 0) 72%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }
 
 /* Welcome cards — match ARIES-widget host Preflight overrides */
@@ -270,6 +290,21 @@ html {
 .risk-feed-table tbody tr {
   cursor: pointer;
   background-color: #ffffff;
+}
+
+.risk-feed-table tbody tr.agent-section-row,
+.risk-feed-table tbody tr.agent-section-row:hover {
+  cursor: default;
+  background-color: #f8fafc;
+}
+
+.risk-feed-table tr.agent-section-row td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .risk-feed-table tbody tr:hover {

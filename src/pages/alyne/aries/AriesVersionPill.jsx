@@ -14,7 +14,7 @@ const V2_ONLY_REDIRECTS = [
   { test: (p) => p.startsWith('/aries/admin/retention'), to: '/aries/admin/teams' },
 ];
 
-export function AriesVersionPill() {
+export function AriesVersionPill({ className }) {
   const { version, setVersion } = useAries();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -27,7 +27,10 @@ export function AriesVersionPill() {
 
   return (
     <div
-      className="absolute left-1/2 top-0 z-20 flex -translate-x-1/2 items-center gap-1 rounded-b-2xl border border-t-0 border-[#e2e8f0] bg-white p-1 shadow-[0_4px_12px_rgba(0,26,53,0.06)]"
+      className={cn(
+        'absolute left-1/2 top-0 z-20 flex -translate-x-1/2 items-center gap-1 rounded-b-2xl border border-t-0 border-[#e2e8f0] bg-white p-1 shadow-[0_4px_12px_rgba(0,26,53,0.06)]',
+        className
+      )}
       role="group"
       aria-label="ARIES prototype version"
     >

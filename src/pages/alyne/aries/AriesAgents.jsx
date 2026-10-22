@@ -11,6 +11,22 @@ import { GovernanceHeader, HealthLabel, Initials, StepTrack, focusRing } from '.
 
 const OLD_APPROVAL_DAYS = 7;
 
+function orderByPending(agents) {
+  return agents
+    .map((agent, index) => ({ agent, index }))
+    .sort((a, b) => {
+      const aPending = a.agent.pending.length > 0;
+      const bPending = b.agent.pending.length > 0;
+      if (aPending !== bPending) return aPending ? -1 : 1;
+      if (aPending && bPending) {
+        const byAge = oldestPendingDays(b.agent) - oldestPendingDays(a.agent);
+        if (byAge !== 0) return byAge;
+      }
+      return a.index - b.index;
+    })
+    .map((item) => item.agent);
+}
+
 const fieldClass =
   'h-9 rounded-full border border-cool-grey-200 bg-white text-sm text-grey-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
 
@@ -22,6 +38,7 @@ export default function AriesAgents() {
   const [query, setQuery] = useState('');
   const [focus, setFocus] = useState('all');
   const [status, setStatus] = useState('all');
+  const [runType, setRunType] = useState('all');
   const [owner, setOwner] = useState('all');
 
   const selectedId = searchParams.get('agent');
@@ -36,11 +53,13 @@ export default function AriesAgents() {
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return registryAgents.filter((agent) => {
+    const matched = registryAgents.filter((agent) => {
       if (focus === 'pending' && agent.pending.length === 0) return false;
       if (focus === 'oldest' && agent.id !== REGISTRY_SUMMARY.oldest.id) return false;
       if (focus === 'failed' && agent.lastRunOutcome !== 'failed') return false;
       if (status !== 'all' && agent.status !== status) return false;
+      if (runType === 'scheduled' && !agent.cadence.startsWith('Scheduled')) return false;
+      if (runType === 'manual' && agent.cadence.startsWith('Scheduled')) return false;
       if (owner !== 'all' && agent.owner !== owner) return false;
       if (!needle) return true;
       return [agent.name, agent.owner, agent.cadence, ...agent.subAgents]
@@ -48,13 +67,19 @@ export default function AriesAgents() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [focus, owner, query, registryAgents, status]);
+    return [
+      { id: 'scheduled', label: 'Scheduled', agents: orderByPending(matched.filter((agent) => agent.cadence.startsWith('Scheduled'))) },
+      { id: 'manual', label: 'Manual', agents: orderByPending(matched.filter((agent) => !agent.cadence.startsWith('Scheduled'))) },
+    ].filter((group) => group.agents.length > 0);
+  }, [focus, owner, query, registryAgents, runType, status]);
 
-  const filtered = focus !== 'all' || status !== 'all' || owner !== 'all' || query.trim() !== '';
+  const agentCount = visible.reduce((sum, group) => sum + group.agents.length, 0);
+  const filtered = focus !== 'all' || status !== 'all' || runType !== 'all' || owner !== 'all' || query.trim() !== '';
   const clearFilters = () => {
     if (focus === 'oldest') selectAgent(null);
     setFocus('all');
     setStatus('all');
+    setRunType('all');
     setOwner('all');
     setQuery('');
   };
@@ -85,7 +110,7 @@ export default function AriesAgents() {
     <div className="h-full overflow-y-auto bg-[#f8fafc] px-8 pb-10 pt-16">
       <div className="mx-auto flex w-full max-w-8xl flex-col">
         <GovernanceHeader
-          title="Agent registry"
+          title="Workflow agents"
           description="Every agent in the workspace, who owns it, and where a person has to step in."
           action={
             <button
@@ -140,6 +165,19 @@ export default function AriesAgents() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+          <label className="sr-only" htmlFor="registry-run-type">
+            Run type
+          </label>
+          <select
+            id="registry-run-type"
+            value={runType}
+            onChange={(event) => setRunType(event.target.value)}
+            className={cn(fieldClass, 'px-3', selectChevronClass)}
+          >
+            <option value="all">All run types</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="manual">Manual</option>
+          </select>
           <label className="sr-only" htmlFor="registry-owner">
             Owner
           </label>
@@ -158,8 +196,8 @@ export default function AriesAgents() {
           </select>
           <p className="text-xs text-cool-grey-600 sm:ml-auto" aria-live="polite">
             {filtered
-              ? `${visible.length} of ${registryAgents.length} agents`
-              : `${visible.length} ${visible.length === 1 ? 'agent' : 'agents'}`}
+              ? `${agentCount} of ${registryAgents.length} agents`
+              : `${agentCount} ${agentCount === 1 ? 'agent' : 'agents'}`}
             {filtered ? (
               <>
                 {' · '}
@@ -206,15 +244,14 @@ export default function AriesAgents() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  visible.map((agent) => (
-                    <RegistryRow
-                      key={agent.id}
-                      agent={agent}
-                      selected={agent.id === selected?.id}
+                  visible.map((group) => (
+                    <AgentGroup
+                      key={group.id}
+                      group={group}
+                      columns={selected ? 3 : 5}
+                      selectedId={selected?.id}
                       compact={selected !== null}
-                      onSelect={() =>
-                        agent.id === selected?.id ? closeInspector() : selectAgent(agent.id)
-                      }
+                      onSelect={(id) => (id === selected?.id ? closeInspector() : selectAgent(id))}
                     />
                   ))
                 )}
@@ -226,6 +263,28 @@ export default function AriesAgents() {
         </div>
       </div>
     </div>
+  );
+}
+
+function AgentGroup({ group, columns, selectedId, compact, onSelect }) {
+  return (
+    <>
+      <TableRow className="agent-section-row">
+        <TableCell colSpan={columns}>
+          {group.label}
+          <span className="ml-1.5 font-normal tabular-nums text-[#94a3b8]">{group.agents.length}</span>
+        </TableCell>
+      </TableRow>
+      {group.agents.map((agent) => (
+        <RegistryRow
+          key={agent.id}
+          agent={agent}
+          selected={agent.id === selectedId}
+          compact={compact}
+          onSelect={() => onSelect(agent.id)}
+        />
+      ))}
+    </>
   );
 }
 

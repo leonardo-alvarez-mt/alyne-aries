@@ -19,8 +19,8 @@ export default function AriesLayout() {
         style={{ height: 'calc(100vh - var(--shell-header-height))' }}
       >
         {sectionNav ? <AriesSectionNav /> : <AriesSidebar />}
-        <div className="relative min-w-0 flex-1 overflow-hidden bg-white">
-          <AriesVersionPill />
+        <div className="group/workspace relative min-w-0 flex-1 overflow-hidden bg-white">
+          <AriesVersionPill className="group-has-[#recovery-output-panel]/workspace:hidden" />
           <Outlet />
         </div>
       </div>
