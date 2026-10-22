@@ -15,7 +15,7 @@ export default function AriesLayout() {
   return (
     <AriesProvider>
       <div
-        className="aries-workspace relative flex overflow-hidden bg-white"
+        className="aries-workspace group/aries relative flex overflow-hidden bg-white"
         style={{ height: 'calc(100vh - var(--shell-header-height))' }}
       >
         {sectionNav ? <AriesSectionNav /> : <AriesSidebar />}

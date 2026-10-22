@@ -9,6 +9,7 @@ import {
   Library,
   Settings,
   SlidersHorizontal,
+  PanelLeft,
   ChevronDown,
   MessageSquare,
 } from 'lucide-react';
@@ -21,28 +22,48 @@ import { cn } from '../../../utils/cn';
 const rowBase =
   'flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[14px] leading-5 transition-colors';
 const rowIdle = 'text-[#1e293b] hover:bg-[#f1f5f9]';
-const rowActive = 'bg-[#f1f5f9] font-medium text-[#001a35]';
+const rowActive = 'bg-[rgba(0,103,210,0.10)] font-medium text-[#001a35]';
+const SIDEBAR_COLLAPSED_KEY = 'aries-sidebar-collapsed';
 
-function AriesBrand() {
+function AriesBrand({ collapsed }) {
   return (
     <img
       src={publicPath('aries/aries-logo.svg')}
       alt="ARIES"
-      className="h-6 w-auto shrink-0"
+      className={cn(
+        'h-6 w-auto shrink-0 group-has-[.aries-side-panel]/aries:hidden',
+        collapsed && 'hidden'
+      )}
       style={{ width: 80, height: 24 }}
     />
   );
 }
 
-function NavRow({ to, icon: Icon, label, end }) {
+function NavRow({ to, icon: Icon, label, end, collapsed }) {
   return (
     <NavLink
       to={to}
       end={end}
-      className={({ isActive }) => cn(rowBase, ariesFocus, isActive ? rowActive : rowIdle)}
+      title={label}
+      className={({ isActive }) =>
+        cn(
+          rowBase,
+          'group-has-[.aries-side-panel]/aries:justify-center group-has-[.aries-side-panel]/aries:px-0',
+          collapsed && 'justify-center px-0',
+          ariesFocus,
+          isActive ? rowActive : rowIdle
+        )
+      }
     >
       <Icon size={18} strokeWidth={1.6} className="shrink-0 text-[#334155]" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate group-has-[.aries-side-panel]/aries:sr-only',
+          collapsed && 'sr-only'
+        )}
+      >
+        {label}
+      </span>
     </NavLink>
   );
 }
@@ -208,10 +229,10 @@ function SearchResult({ icon: Icon, label, onClick }) {
   );
 }
 
-function CollapsibleSection({ title, defaultOpen = true, children, trailing }) {
+function CollapsibleSection({ title, defaultOpen = true, children, trailing, className }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="mt-5">
+    <section className={cn('mt-5', className)}>
       <div className="flex items-center gap-2 px-2.5">
         <button
           type="button"
@@ -244,6 +265,13 @@ export function AriesSidebar() {
   const isV2 = version === 'v2';
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [collapsed, setCollapsed] = useState(
+    () => window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
+  );
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
@@ -277,52 +305,69 @@ export function AriesSidebar() {
   ];
 
   return (
+    <>
     <aside
-      className="flex h-full w-[248px] shrink-0 flex-col border-r border-[#e2e8f0] bg-white"
+      className={cn(
+        'flex h-full shrink-0 flex-col overflow-hidden border-r bg-white transition-[width,border-color] duration-200 ease-out motion-reduce:transition-none',
+        collapsed
+          ? '!w-0 border-r-0'
+          : 'w-[248px] border-[#e2e8f0] group-has-[.aries-side-panel]/aries:w-16'
+      )}
       aria-label="ARIES navigation"
+      aria-hidden={collapsed}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-4">
-        <AriesBrand />
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          aria-label="Search chats"
-          aria-pressed={searchOpen}
-          title="Search ⌘K"
-          className={cn(
-            'flex size-8 items-center justify-center rounded-lg text-[#334155] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
-            ariesFocus,
-            searchOpen && 'bg-[#f1f5f9]'
-          )}
-        >
-          <Search size={18} strokeWidth={1.6} aria-hidden />
-        </button>
+      <div
+        className={cn(
+          'flex h-full min-h-0 flex-col transition-opacity duration-150',
+          collapsed && 'pointer-events-none opacity-0'
+        )}
+      >
+      <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 pt-4 group-has-[.aries-side-panel]/aries:justify-center group-has-[.aries-side-panel]/aries:px-0">
+        <AriesBrand collapsed={collapsed} />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search chats"
+            aria-pressed={searchOpen}
+            title="Search ⌘K"
+            className={cn(
+              'flex size-8 items-center justify-center rounded-lg text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
+              ariesFocus,
+              searchOpen && 'bg-[#f1f5f9]'
+            )}
+          >
+            <Search size={18} strokeWidth={1.5} aria-hidden />
+          </button>
+          <NavCollapseButton collapsed={false} onClick={() => setCollapsed(true)} />
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-4 pt-2">
         <nav aria-label="ARIES" className="flex flex-col">
           <ul className="flex flex-col gap-0.5">
             <li>
-              <NavRow to="/aries" end icon={Plus} label="New chat" />
+              <NavRow to="/aries" end icon={Plus} label="New chat" collapsed={collapsed} />
             </li>
             <li>
-              <NavRow to="/aries/agents" icon={Bot} label="Agents" />
+              <NavRow to="/aries/agents" icon={Bot} label="Agents" collapsed={collapsed} />
             </li>
             {isV2 ? (
               <li>
-                <NavRow to="/aries/skills" icon={Library} label="Skills" />
+                <NavRow to="/aries/skills" icon={Library} label="Skills" collapsed={collapsed} />
               </li>
             ) : null}
             <li>
-              <NavRow to="/aries/knowledge" icon={SlidersHorizontal} label="Customize" />
+              <NavRow to="/aries/knowledge" icon={SlidersHorizontal} label="Customize" collapsed={collapsed} />
             </li>
             <li>
-              <NavRow to="/aries/admin" icon={Settings} label="Settings" />
+              <NavRow to="/aries/admin" icon={Settings} label="Settings" collapsed={collapsed} />
             </li>
           </ul>
         </nav>
 
         <CollapsibleSection
+          className={cn('group-has-[.aries-side-panel]/aries:hidden', collapsed && 'hidden')}
           title="Recents"
           trailing={
             isV2 ? (
@@ -358,6 +403,7 @@ export function AriesSidebar() {
           )}
         </CollapsibleSection>
       </div>
+      </div>
 
       <SearchDialog
         open={searchOpen}
@@ -372,5 +418,45 @@ export function AriesSidebar() {
         }}
       />
     </aside>
+    {collapsed ? (
+      <NavCollapseButton
+        collapsed
+        onClick={() => setCollapsed(false)}
+        className="absolute left-3 top-4 z-30"
+      />
+    ) : null}
+    </>
+  );
+}
+
+function NavCollapseButton({ collapsed, onClick, className }) {
+  const label = collapsed ? 'Expand navigation' : 'Collapse navigation';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-expanded={!collapsed}
+      className={cn(
+        'group/collapse flex size-8 items-center justify-center rounded-lg text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#001a35]',
+        collapsed
+          ? 'absolute border border-[#e2e8f0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)]'
+          : 'relative group-has-[.aries-side-panel]/aries:hidden',
+        ariesFocus,
+        className
+      )}
+    >
+      <PanelLeft size={18} strokeWidth={1.5} aria-hidden />
+      <span
+        role="tooltip"
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-[#0f172a] px-2 py-1 text-[12px] font-medium text-white opacity-0 shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-opacity group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100',
+          collapsed ? 'left-0' : 'right-0'
+        )}
+      >
+        {label}
+      </span>
+    </button>
   );
 }

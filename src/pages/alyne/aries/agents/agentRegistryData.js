@@ -106,7 +106,6 @@ export const REGISTRY_AGENTS = [
     steps: [
       { name: 'Read the assessment', subAgent: 'Vendor Survey Agent', gate: false },
       { name: 'Residual rating', subAgent: 'Decision', gate: false },
-      { name: 'End workflow', subAgent: 'Decision', gate: false },
       { name: 'Draft conditions', subAgent: 'Risk Mitigation Agent', gate: false },
       { name: 'Approve conditions', subAgent: 'Risk Mitigation Agent', gate: true },
       { name: 'Record the decision', subAgent: 'Vendor Survey Agent', gate: false },
@@ -118,11 +117,17 @@ export const REGISTRY_AGENTS = [
     graph: {
       trunk: ['trigger', 'read', 'decision'],
       branches: [
-        { label: 'High', nodes: ['end'] },
-        { label: 'Medium', nodes: ['draft', 'approve'] },
-        { label: 'Low', nodes: ['record'] },
+        {
+          id: 'high',
+          label: 'High',
+          stopWorkflow: true,
+          stopReason: 'Residual risk is High and requires remediation before approval.',
+          nodes: [],
+        },
+        { id: 'medium', label: 'Medium', stopWorkflow: false, nodes: ['draft', 'approve'] },
+        { id: 'low', label: 'Low', stopWorkflow: false, nodes: ['record'] },
       ],
-      audit: ['trigger', 'read', 'decision', 'end', 'draft', 'approve', 'record'],
+      audit: ['trigger', 'read', 'decision', 'draft', 'approve', 'record'],
       nodes: {
         trigger: {
           type: 'trigger',
@@ -150,26 +155,15 @@ export const REGISTRY_AGENTS = [
         decision: {
           type: 'decision',
           title: 'Residual rating',
+          question: 'What is the residual risk rating?',
+          responseType: 'options',
           detail: 'A small decision model picks one option and returns a confidence, in about a tenth of a second.',
           sample: { choice: 'High', confidence: '0.91' },
-          options: [
-            { label: 'High', effect: 'Ends', target: 'the workflow' },
-            { label: 'Medium', effect: 'Triggers', target: 'Draft conditions' },
-            {
-              label: 'Low',
-              effect: 'Triggers',
-              target: 'Record the decision',
-              skips: ['Draft conditions', 'Approve conditions'],
-            },
-          ],
-          run: { outcome: 'ran', detail: 'Chose High with confidence 0.91.' },
-        },
-        end: {
-          type: 'end',
-          title: 'End workflow',
-          detail: 'The workflow stops. These steps do not run.',
-          stops: ['Draft conditions', 'Approve conditions', 'Record the decision'],
-          run: { outcome: 'ended', detail: 'Stopped because residual rating was High.' },
+          run: {
+            outcome: 'ended',
+            detail:
+              'Chose High with confidence 0.91. Stopped: Residual risk is High and requires remediation before approval.',
+          },
         },
         draft: {
           type: 'prompt',

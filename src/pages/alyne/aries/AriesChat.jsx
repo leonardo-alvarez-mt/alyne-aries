@@ -1079,7 +1079,7 @@ function RecoveryOutputPanel({ outputId, onClose }) {
       <section
         id="recovery-output-panel"
         aria-label={htmlView ? 'Northwind Cloud briefing' : 'Recovery priorities'}
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
+        className="aries-side-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)]"
       >
         <div className="flex items-center gap-1.5 py-2.5 pl-3 pr-2">
           {htmlView ? (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, GitBranch, Plus, ShieldCheck, Square, X } from 'lucide-react';
+import { ArrowLeft, GitBranch, Plus, ShieldCheck, StopCircle, Trash2, X } from 'lucide-react';
 import { selectChevronClass } from '../../../../components/ui/selectField';
 import { cn } from '../../../../utils/cn';
 import { focusRing } from './agentRegistryUi';
@@ -14,7 +14,6 @@ const KICKER = {
   trigger: 'Trigger',
   prompt: 'Prompt',
   decision: 'Decision',
-  end: 'End',
 };
 
 const CAPABILITY_AGENTS = ['Vendor Survey Agent', 'Risk Mitigation Agent'];
@@ -46,15 +45,17 @@ function insertPrompt(graph, branchIndex, index) {
     outputs: ['Result'],
   };
   const branch = graph.branches[branchIndex];
-  const current = graph.nodes[branch.nodes[index]];
   const nodes = [...branch.nodes];
-  if (current?.type === 'end') nodes.splice(index, 1, id);
-  else nodes.splice(index, 0, id);
+  nodes.splice(index, 0, id);
   return {
     id,
     graph: {
       ...graph,
-      branches: graph.branches.map((item, itemIndex) => (itemIndex === branchIndex ? { ...item, nodes } : item)),
+      branches: graph.branches.map((item, itemIndex) =>
+        itemIndex === branchIndex
+          ? { ...item, stopWorkflow: false, stopReason: '', nodes }
+          : item
+      ),
       nodes: { ...graph.nodes, [id]: node },
     },
   };
@@ -72,20 +73,19 @@ function removePrompt(graph, nodeId) {
       ? { ...item, bindings: item.bindings.filter((binding) => binding.source !== node.title) }
       : item;
   }
-  let branchNodes = remaining;
-  if (remaining.length === 0) {
-    const endId = `end-${graph.branches[branchIndex].label.toLowerCase()}`;
-    branchNodes = [endId];
-    nodes[endId] = nodes[endId] || {
-      id: endId,
-      type: 'end',
-      title: 'End workflow',
-      detail: 'The workflow stops. These steps do not run.',
-    };
-  }
   return {
     ...graph,
-    branches: graph.branches.map((item, itemIndex) => (itemIndex === branchIndex ? { ...item, nodes: branchNodes } : item)),
+    branches: graph.branches.map((item, itemIndex) =>
+      itemIndex === branchIndex
+        ? {
+            ...item,
+            nodes: remaining,
+            ...(remaining.length === 0
+              ? { stopWorkflow: true, stopReason: 'No continuation step is configured.' }
+              : {}),
+          }
+        : item
+    ),
     nodes,
   };
 }
@@ -122,18 +122,34 @@ function branchOf(graph, nodeId) {
 }
 
 function routeSummary(graph, branch) {
+  if (branch.stopWorkflow) return `Stops: ${branch.stopReason || 'No reason provided'}`;
   const prompts = branch.nodes.map((id) => graph.nodes[id]).filter((node) => node?.type === 'prompt');
-  if (prompts.length === 0) return 'Ends the workflow';
+  if (prompts.length === 0) return 'Continues; add the next step';
   return `Triggers ${prompts.map((node) => node.title).join(', then ')}`;
 }
 
-function stepsElsewhere(graph, branchLabel) {
-  return graph.branches
-    .filter((branch) => branch.label !== branchLabel)
-    .flatMap((branch) => branch.nodes)
-    .map((id) => graph.nodes[id])
-    .filter((node) => node?.type === 'prompt')
-    .map((node) => node.title);
+function removeBranchNodes(graph, branch) {
+  const removed = new Set(branch.nodes);
+  const removedTitles = new Set(branch.nodes.map((id) => graph.nodes[id]?.title).filter(Boolean));
+  const nodes = {};
+  for (const [id, node] of Object.entries(graph.nodes)) {
+    if (removed.has(id)) continue;
+    nodes[id] = node.bindings
+      ? { ...node, bindings: node.bindings.filter((binding) => !removedTitles.has(binding.source)) }
+      : node;
+  }
+  return nodes;
+}
+
+function responseBranches(responseType) {
+  const labels = responseType === 'yes-no' ? ['Yes', 'No'] : ['Option 1', 'Option 2'];
+  return labels.map((label, index) => ({
+    id: `${responseType}-${index + 1}`,
+    label,
+    stopWorkflow: true,
+    stopReason: 'No continuation step is configured.',
+    nodes: [],
+  }));
 }
 
 export default function WorkflowDesigner({ agent, onBack }) {
@@ -215,6 +231,89 @@ export default function WorkflowDesigner({ agent, onBack }) {
     });
   };
 
+  const patchDecision = (patch) => {
+    setDraft((current) => ({
+      ...current,
+      nodes: {
+        ...current.nodes,
+        decision: { ...current.nodes.decision, ...patch },
+      },
+    }));
+  };
+
+  const patchBranch = (branchId, patch) => {
+    setDraft((current) => {
+      const branch = current.branches.find((item) => item.id === branchId);
+      if (!branch) return current;
+      const stopping = patch.stopWorkflow === true && !branch.stopWorkflow;
+      return {
+        ...current,
+        nodes: stopping ? removeBranchNodes(current, branch) : current.nodes,
+        branches: current.branches.map((item) =>
+          item.id === branchId
+            ? {
+                ...item,
+                ...patch,
+                ...(stopping ? { nodes: [] } : {}),
+              }
+            : item
+        ),
+      };
+    });
+  };
+
+  const changeResponseType = (responseType) => {
+    if (responseType === draft.nodes.decision.responseType) return;
+    if (!window.confirm('Changing the response type replaces the current answers and their route steps.')) return;
+    setDraft((current) => {
+      let nodes = current.nodes;
+      for (const branch of current.branches) nodes = removeBranchNodes({ ...current, nodes }, branch);
+      return {
+        ...current,
+        nodes: {
+          ...nodes,
+          decision: { ...nodes.decision, responseType },
+        },
+        branches: responseBranches(responseType),
+      };
+    });
+    setInsertAt(null);
+  };
+
+  const addOption = () => {
+    setDraft((current) => {
+      if (current.branches.length >= 4) return current;
+      const number = current.branches.length + 1;
+      return {
+        ...current,
+        branches: [
+          ...current.branches,
+          {
+            id: `option-${Date.now().toString(36)}-${number}`,
+            label: `Option ${number}`,
+            stopWorkflow: true,
+            stopReason: 'No continuation step is configured.',
+            nodes: [],
+          },
+        ],
+      };
+    });
+  };
+
+  const removeOption = (branchId) => {
+    setDraft((current) => {
+      if (current.branches.length <= 2) return current;
+      const branch = current.branches.find((item) => item.id === branchId);
+      if (!branch) return current;
+      return {
+        ...current,
+        nodes: removeBranchNodes(current, branch),
+        branches: current.branches.filter((item) => item.id !== branchId),
+      };
+    });
+    setInsertAt(null);
+  };
+
   return (
     <div className="flex h-full flex-col bg-[#f8fafc] px-8 pb-6 pt-16">
       <header className="flex shrink-0 items-start justify-between gap-4">
@@ -276,7 +375,10 @@ export default function WorkflowDesigner({ agent, onBack }) {
 
       <div className="mt-4 flex min-h-0 flex-1 gap-4">
         <div className="min-w-0 flex-1 overflow-auto rounded-2xl border border-[#e2e8f0] bg-[radial-gradient(#d5dee8_1px,transparent_1px)] bg-[size:18px_18px] bg-white">
-          <div className="mx-auto flex w-full max-w-[760px] flex-col items-center px-6 py-8">
+          <div
+            className="mx-auto flex w-full flex-col items-center px-6 py-8"
+            style={{ minWidth: Math.max(660, shown.branches.length * 210), maxWidth: Math.max(760, shown.branches.length * 230) }}
+          >
             {shown.trunk.map((id, index) => (
               <div key={id} className="flex flex-col items-center">
                 {index > 0 ? <Stem /> : null}
@@ -289,11 +391,16 @@ export default function WorkflowDesigner({ agent, onBack }) {
               </div>
             ))}
             <Fork labels={shown.branches.map((branch) => branch.label)} />
-            <div className="grid w-full grid-cols-3 items-start gap-4">
+            <div
+              className="grid w-full items-start gap-4"
+              style={{ gridTemplateColumns: `repeat(${shown.branches.length}, minmax(180px, 1fr))` }}
+            >
               {shown.branches.map((branch, branchIndex) => {
-                const last = shown.nodes[branch.nodes[branch.nodes.length - 1]];
                 return (
-                  <div key={branch.label} className="flex flex-col items-center">
+                  <div key={branch.id} className="flex flex-col items-center">
+                    {branch.stopWorkflow ? (
+                      <StopTerminal reason={branch.stopReason} />
+                    ) : null}
                     {branch.nodes.map((id, index) => (
                       <div key={id} className="flex w-full flex-col items-center">
                         {editable ? (
@@ -322,7 +429,7 @@ export default function WorkflowDesigner({ agent, onBack }) {
                         />
                       </div>
                     ))}
-                    {editable && last?.type !== 'end' ? (
+                    {editable && !branch.stopWorkflow ? (
                       <InsertControl
                         open={insertAt?.branchIndex === branchIndex && insertAt.index === branch.nodes.length}
                         label={`Add a prompt step on ${branch.label}`}
@@ -344,7 +451,7 @@ export default function WorkflowDesigner({ agent, onBack }) {
         </div>
 
         <aside
-          className="flex w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white"
+          className="aries-side-panel flex w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white"
           aria-label={mode === 'run' ? 'Last run' : selected.title}
         >
           {mode === 'run' ? (
@@ -354,6 +461,11 @@ export default function WorkflowDesigner({ agent, onBack }) {
               node={selected}
               graph={draft}
               onPatch={(patch) => patchPrompt(selected.id, patch)}
+              onPatchDecision={patchDecision}
+              onChangeResponseType={changeResponseType}
+              onPatchBranch={patchBranch}
+              onAddOption={addOption}
+              onRemoveOption={removeOption}
               onAddBinding={(binding) => addBinding(selected.id, binding)}
               onRemoveBinding={(binding) => dropBinding(selected.id, binding)}
               onRemove={branchOf(draft, selected.id) && selected.type === 'prompt' ? () => dropPrompt(selected.id) : null}
@@ -404,11 +516,17 @@ function InsertControl({ open, label, onOpen, onInsert }) {
 }
 
 function Fork({ labels }) {
-  const columns = ['16.666%', '50%', '83.333%'];
+  const columns = labels.map((_, index) => `${((index + 0.5) / labels.length) * 100}%`);
+  const first = columns[0];
+  const last = columns[columns.length - 1];
   return (
     <div className="relative h-16 w-full">
       <span className="absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-[#cbd5e1]" aria-hidden="true" />
-      <span className="absolute left-[16.666%] right-[16.666%] top-4 h-px bg-[#cbd5e1]" aria-hidden="true" />
+      <span
+        className="absolute top-4 h-px bg-[#cbd5e1]"
+        style={{ left: first, width: `calc(${last} - ${first})` }}
+        aria-hidden="true"
+      />
       {columns.map((left, index) => (
         <span key={left}>
           <span className="absolute top-4 h-5 w-px -translate-x-1/2 bg-[#cbd5e1]" style={{ left }} aria-hidden="true" />
@@ -424,12 +542,25 @@ function Fork({ labels }) {
   );
 }
 
+function StopTerminal({ reason }) {
+  return (
+    <div className="mt-2 w-full rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-2.5">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">
+        <StopCircle className="size-3.5" aria-hidden="true" />
+        Stops here
+      </span>
+      <span className="mt-1 block text-xs leading-5 text-[#475569]">
+        {reason || 'Add a stop reason in the decision configuration.'}
+      </span>
+    </div>
+  );
+}
+
 function FlowCard({ node, selected, showOutcome, onSelect, onRemove, className }) {
   return (
     <div
       className={cn(
         'flex w-[240px] items-start gap-1 rounded-xl border bg-white px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
-        node.type === 'end' && 'border-dashed bg-[#f8fafc]',
         selected ? 'border-[#93c5fd] shadow-[0_0_0_3px_rgba(0,103,210,0.12)]' : 'border-[#e2e8f0]',
         className
       )}
@@ -437,7 +568,6 @@ function FlowCard({ node, selected, showOutcome, onSelect, onRemove, className }
       <button type="button" onClick={onSelect} aria-pressed={selected} className={cn('min-w-0 flex-1 text-left', focusRing)}>
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">
           {node.type === 'decision' ? <GitBranch className="size-3.5 text-[#0067D2]" aria-hidden="true" /> : null}
-          {node.type === 'end' ? <Square className="size-3 text-[#64748b]" aria-hidden="true" /> : null}
           {KICKER[node.type]}
         </span>
         <span className="mt-1 block text-sm font-medium text-[#0f172a]">{node.title}</span>
@@ -480,10 +610,20 @@ function Outcome({ outcome }) {
   );
 }
 
-function StepConfig({ node, graph, onPatch, onAddBinding, onRemoveBinding, onRemove }) {
-  const branch = branchOf(graph, node.id);
+function StepConfig({
+  node,
+  graph,
+  onPatch,
+  onPatchDecision,
+  onChangeResponseType,
+  onPatchBranch,
+  onAddOption,
+  onRemoveOption,
+  onAddBinding,
+  onRemoveBinding,
+  onRemove,
+}) {
   const available = node.type === 'prompt' ? unboundFields(graph, node) : [];
-  const elsewhere = node.type === 'end' && branch ? stepsElsewhere(graph, branch.label) : [];
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">{KICKER[node.type]}</p>
@@ -498,6 +638,42 @@ function StepConfig({ node, graph, onPatch, onAddBinding, onRemoveBinding, onRem
         <h2 className="m-0 mt-1 text-base font-semibold text-[#0f172a]">{node.title}</h2>
       )}
       {node.detail ? <p className="mt-2 text-sm leading-6 text-[#475569]">{node.detail}</p> : null}
+      {node.type === 'decision' ? (
+        <>
+          <label className="mt-4 block">
+            <span className="text-xs font-medium text-[#64748b]">Question</span>
+            <textarea
+              value={node.question}
+              aria-label="Decision question"
+              rows={2}
+              onChange={(event) => onPatchDecision({ question: event.target.value })}
+              className={cn(
+                'mt-1 w-full resize-none rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm leading-5 text-[#0f172a]',
+                focusRing
+              )}
+            />
+          </label>
+          <label className="mt-4 block">
+            <span className="text-xs font-medium text-[#64748b]">Answer type</span>
+            <select
+              value={node.responseType}
+              aria-label="Answer type"
+              onChange={(event) => onChangeResponseType(event.target.value)}
+              className={cn(
+                'mt-1 h-9 w-full rounded-lg border border-[#e2e8f0] bg-white px-2 text-sm text-[#0f172a]',
+                selectChevronClass,
+                focusRing
+              )}
+            >
+              <option value="options">List of options</option>
+              <option value="yes-no">Yes / No</option>
+            </select>
+            <span className="mt-1.5 block text-xs leading-5 text-[#64748b]">
+              Changing this replaces the current answers and route steps.
+            </span>
+          </label>
+        </>
+      ) : null}
       {node.type === 'prompt' ? (
         <label className="mt-4 block">
           <span className="text-xs font-medium text-[#64748b]">Capability agent</span>
@@ -543,18 +719,14 @@ function StepConfig({ node, graph, onPatch, onAddBinding, onRemoveBinding, onRem
       ) : null}
       {node.outputs ? <Field label="Output" value={node.outputs.join(', ')} /> : null}
       {node.produces ? <Field label="Fields produced" value={node.produces.join(', ')} /> : null}
-      {node.options ? <DecisionOptions graph={graph} node={node} /> : null}
-      {node.type === 'end' && elsewhere.length > 0 ? (
-        <div className="mt-4">
-          <p className="text-xs font-medium text-[#64748b]">Will not run</p>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {elsewhere.map((name) => (
-              <li key={name} className="text-sm text-[#0f172a]">
-                {name}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {node.type === 'decision' ? (
+        <DecisionOptions
+          graph={graph}
+          node={node}
+          onPatchBranch={onPatchBranch}
+          onAddOption={onAddOption}
+          onRemoveOption={onRemoveOption}
+        />
       ) : null}
       {onRemove ? (
         <button
@@ -635,7 +807,8 @@ function Bindings({ bindings, withheld, onAdd, onRemove }) {
   );
 }
 
-function DecisionOptions({ graph, node }) {
+function DecisionOptions({ graph, node, onPatchBranch, onAddOption, onRemoveOption }) {
+  const editableOptions = node.responseType === 'options';
   return (
     <div className="mt-4">
       <p className="text-xs font-medium text-[#64748b]">Last decision</p>
@@ -643,12 +816,85 @@ function DecisionOptions({ graph, node }) {
         {node.sample.choice}
         <span className="text-[#64748b]"> · confidence {node.sample.confidence}</span>
       </p>
-      <p className="mt-4 text-xs font-medium text-[#64748b]">Routes</p>
-      <ul className="mt-2 flex flex-col gap-2">
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-[#64748b]">Answers and routes</p>
+        {editableOptions && graph.branches.length < 4 ? (
+          <button
+            type="button"
+            onClick={onAddOption}
+            className={cn('rounded text-xs font-medium text-[#0067D2] hover:underline', focusRing)}
+          >
+            Add option
+          </button>
+        ) : null}
+      </div>
+      <ul className="mt-2 flex flex-col gap-3">
         {graph.branches.map((branch) => (
-          <li key={branch.label} className="rounded-lg border border-[#e2e8f0] px-3 py-2">
-            <span className="block text-sm font-medium text-[#0f172a]">{branch.label}</span>
-            <span className="mt-0.5 block text-xs leading-5 text-[#475569]">{routeSummary(graph, branch)}</span>
+          <li key={branch.id} className="rounded-xl border border-[#e2e8f0] p-3">
+            <div className="flex items-center gap-2">
+              <input
+                value={branch.label}
+                aria-label="Answer"
+                disabled={!editableOptions}
+                onChange={(event) => onPatchBranch(branch.id, { label: event.target.value })}
+                className={cn(
+                  'h-8 min-w-0 flex-1 rounded-md border border-[#e2e8f0] px-2 text-sm font-medium text-[#0f172a] disabled:border-transparent disabled:bg-transparent disabled:px-0',
+                  focusRing
+                )}
+              />
+              {editableOptions && graph.branches.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => onRemoveOption(branch.id)}
+                  aria-label={`Remove ${branch.label}`}
+                  className={cn(
+                    'flex size-7 shrink-0 items-center justify-center rounded-md text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#b42318]',
+                    focusRing
+                  )}
+                >
+                  <Trash2 className="size-3.5" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            <select
+              value={branch.stopWorkflow ? 'stop' : 'continue'}
+              aria-label={`${branch.label} behavior`}
+              onChange={(event) =>
+                onPatchBranch(branch.id, {
+                  stopWorkflow: event.target.value === 'stop',
+                  ...(event.target.value === 'stop' && !branch.stopReason
+                    ? { stopReason: 'No continuation step is configured.' }
+                    : {}),
+                })
+              }
+              className={cn(
+                'mt-2 h-9 w-full rounded-lg border border-[#e2e8f0] bg-white px-2 text-sm text-[#0f172a]',
+                selectChevronClass,
+                focusRing
+              )}
+            >
+              <option value="continue">Continue workflow</option>
+              <option value="stop">Stop workflow here</option>
+            </select>
+            {branch.stopWorkflow ? (
+              <label className="mt-2 block">
+                <span className="text-xs font-medium text-[#64748b]">Stop reason</span>
+                <textarea
+                  value={branch.stopReason || ''}
+                  required
+                  aria-label={`${branch.label} stop reason`}
+                  rows={2}
+                  onChange={(event) => onPatchBranch(branch.id, { stopReason: event.target.value })}
+                  className={cn(
+                    'mt-1 w-full resize-none rounded-lg border border-[#e2e8f0] px-2.5 py-2 text-xs leading-5 text-[#0f172a]',
+                    !branch.stopReason && 'border-[#fda29b]',
+                    focusRing
+                  )}
+                />
+              </label>
+            ) : (
+              <span className="mt-2 block text-xs leading-5 text-[#475569]">{routeSummary(graph, branch)}</span>
+            )}
           </li>
         ))}
       </ul>

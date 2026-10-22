@@ -424,7 +424,7 @@ function AgentInspector({ agent, onClose }) {
   return (
     <aside
       aria-label={`${agent.name} details`}
-      className="rounded-xl border border-cool-grey-200 bg-white lg:sticky lg:top-0"
+      className="aries-side-panel rounded-xl border border-cool-grey-200 bg-white lg:sticky lg:top-0"
     >
       <div className="flex items-start justify-between gap-3 border-b border-cool-grey-200 px-5 py-4">
         <div className="min-w-0">
