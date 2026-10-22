@@ -8,6 +8,7 @@ import { useAries } from './AriesContext';
 import { REGISTRY_SUMMARY, agentHealth, oldestPendingDays } from './agents/agentRegistryData';
 import { VISIBILITY_OPTIONS } from './ariesData';
 import { GovernanceHeader, HealthLabel, Initials, StepTrack, focusRing } from './agents/agentRegistryUi';
+import WorkflowDesigner from './agents/WorkflowDesigner';
 
 const OLD_APPROVAL_DAYS = 7;
 
@@ -42,12 +43,30 @@ export default function AriesAgents() {
   const [owner, setOwner] = useState('all');
 
   const selectedId = searchParams.get('agent');
-  const selected = registryAgents.find((agent) => agent.id === selectedId) ?? null;
+  const designId = searchParams.get('design');
+  const selected = registryAgents.find((agent) => agent.id === selectedId && !agent.graph) ?? null;
+  const designAgent =
+    registryAgents.find((agent) => agent.graph && (agent.id === designId || agent.id === selectedId)) ?? null;
 
   const selectAgent = (id) => {
     const next = new URLSearchParams(searchParams);
+    next.delete('design');
     if (id) next.set('agent', id);
     else next.delete('agent');
+    setSearchParams(next, { replace: true });
+  };
+
+  const openDesign = (id) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('agent');
+    next.set('design', id);
+    setSearchParams(next, { replace: true });
+  };
+
+  const closeDesign = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('design');
+    next.delete('agent');
     setSearchParams(next, { replace: true });
   };
 
@@ -105,6 +124,8 @@ export default function AriesAgents() {
     { id: 'oldest', label: 'Oldest pending', count: 1 },
     { id: 'failed', label: 'Failed', count: registryAgents.filter((agent) => agent.lastRunOutcome === 'failed').length },
   ];
+
+  if (designAgent) return <WorkflowDesigner agent={designAgent} onBack={closeDesign} />;
 
   return (
     <div className="h-full overflow-y-auto bg-[#f8fafc] px-8 pb-10 pt-16">
@@ -251,7 +272,15 @@ export default function AriesAgents() {
                       columns={selected ? 3 : 5}
                       selectedId={selected?.id}
                       compact={selected !== null}
-                      onSelect={(id) => (id === selected?.id ? closeInspector() : selectAgent(id))}
+                      onSelect={(id) => {
+                        const agent = registryAgents.find((item) => item.id === id);
+                        if (agent?.graph) {
+                          openDesign(id);
+                          return;
+                        }
+                        if (id === selected?.id) closeInspector();
+                        else selectAgent(id);
+                      }}
                     />
                   ))
                 )}
