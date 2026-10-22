@@ -14,6 +14,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useAries } from './AriesContext';
+import { NavAside, NavCollapseButton } from './AriesNavCollapse';
 import { ariesFocus } from './ariesUi';
 import { cn } from '../../../utils/cn';
 
@@ -47,7 +48,7 @@ export function settingsItems(isV2) {
   return items;
 }
 
-export function AriesSectionNav() {
+export function AriesSectionNav({ collapsed, onCollapse }) {
   const { pathname } = useLocation();
   const { version } = useAries();
   const isSettings = pathname.startsWith('/aries/admin');
@@ -55,21 +56,21 @@ export function AriesSectionNav() {
   const items = isSettings ? settingsItems(version === 'v2') : customizeItems(version === 'v2');
 
   return (
-    <aside
-      className="flex h-full w-[248px] shrink-0 flex-col border-r border-[#e2e8f0] bg-white"
-      aria-label={title}
-    >
-      <div className="px-3 pb-2 pt-3">
-        <NavLink
-          to="/aries"
-          className={cn(
-            'inline-flex h-8 items-center gap-1.5 rounded-md px-1.5 text-[13px] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#001a35]',
-            ariesFocus
-          )}
-        >
-          <ArrowLeft size={16} strokeWidth={1.75} aria-hidden />
-          Back
-        </NavLink>
+    <NavAside collapsed={collapsed} label={title}>
+      <div className="px-3 pb-2 pt-4">
+        <div className="flex items-center justify-between gap-2 pr-1">
+          <NavLink
+            to="/aries"
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-md px-1.5 text-[13px] text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#001a35]',
+              ariesFocus
+            )}
+          >
+            <ArrowLeft size={16} strokeWidth={1.75} aria-hidden />
+            Back
+          </NavLink>
+          <NavCollapseButton collapsed={false} onClick={onCollapse} />
+        </div>
         <h1 className="m-0 mt-2 px-1.5 text-[16px] font-semibold text-[#001a35]">{title}</h1>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4" aria-label={title}>
@@ -95,6 +96,6 @@ export function AriesSectionNav() {
           ))}
         </ul>
       </nav>
-    </aside>
+    </NavAside>
   );
 }
